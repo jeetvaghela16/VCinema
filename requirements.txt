@@ -1,0 +1,70 @@
+# ==============================================================================
+# VCinema — Project Requirements & Technical Specifications
+# ==============================================================================
+# "Your cinema. Your people. One screen."
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. SYSTEM & RUNTIME PREREQUISITES
+# ------------------------------------------------------------------------------
+# Node.js runtime environment (LTS recommended)
+node>=18.0.0
+# Node Package Manager
+npm>=9.0.0
+
+# ------------------------------------------------------------------------------
+# 2. CORE FRONTEND FRAMEWORK & LIBRARIES
+# ------------------------------------------------------------------------------
+react==18.2.0
+react-dom==18.2.0
+react-router-dom==6.20.0
+
+# ------------------------------------------------------------------------------
+# 3. BACKEND & CLOUD SERVICES (FIREBASE WEB SDK)
+# ------------------------------------------------------------------------------
+firebase==12.19.0
+# Modules utilized:
+# - firebase/app (Core SDK initialization)
+# - firebase/auth (Email/password, Google OAuth, session state)
+# - firebase/firestore (Real-time virtual theatres, presence, live chat)
+
+# ------------------------------------------------------------------------------
+# 4. STYLING & DESIGN SYSTEM
+# ------------------------------------------------------------------------------
+tailwindcss==3.3.5
+postcss==8.4.31
+autoprefixer==10.4.16
+clsx==2.0.0
+tailwind-merge==2.0.0
+
+# ------------------------------------------------------------------------------
+# 5. BUILD TOOLING & TYPE SYSTEM
+# ------------------------------------------------------------------------------
+vite==5.0.0
+@vitejs/plugin-react==4.2.0
+typescript==5.2.2
+@types/react==18.2.0
+@types/react-dom==18.2.0
+
+# ------------------------------------------------------------------------------
+# 6. CODE QUALITY, LINTING & FORMATTING
+# ------------------------------------------------------------------------------
+eslint==8.53.0
+eslint-plugin-react==7.33.2
+eslint-plugin-react-hooks==4.6.0
+@typescript-eslint/parser==6.10.0
+@typescript-eslint/eslint-plugin==6.10.0
+eslint-config-prettier==9.0.0
+prettier==3.1.0
+
+# ------------------------------------------------------------------------------
+# 7. ENVIRONMENT CONFIGURATION REQUIREMENTS
+# ------------------------------------------------------------------------------
+# The following environment variables must be populated in .env.local:
+# - VITE_FIREBASE_API_KEY
+# - VITE_FIREBASE_AUTH_DOMAIN
+# - VITE_FIREBASE_PROJECT_ID
+# - VITE_FIREBASE_STORAGE_BUCKET
+# - VITE_FIREBASE_MESSAGING_SENDER_ID
+# - VITE_FIREBASE_APP_ID
+# - VITE_USE_FIREBASE_EMULATOR (optional, defaults to false)
