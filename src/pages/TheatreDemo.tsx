@@ -70,14 +70,16 @@ export default function TheatreDemo() {
       {/* ── MAIN AREA ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Screen + controls */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           {/* Cinema screen */}
-          <div className="flex-1 flex items-center justify-center p-4 md:p-6 lg:p-8 relative">
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 relative min-h-[240px]">
             <div
-              className="w-full max-w-5xl aspect-video rounded-[2px] relative overflow-hidden"
               style={{
+                width: 'min(100%, calc((100vh - 300px) * 16 / 9))',
+                maxWidth: '64rem',
                 boxShadow: '0 0 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)',
               }}
+              className="aspect-video rounded-[2px] relative overflow-hidden"
               aria-label="Cinema screen — demo placeholder"
             >
               {/* Cinematic gradient "film" */}
@@ -288,7 +290,7 @@ export default function TheatreDemo() {
           </div>
 
           {/* Participants strip */}
-          <div className="flex-shrink-0 px-4 md:px-8 pb-4">
+          <div className="flex-shrink-0 px-4 md:px-8 pb-6">
             <div className="max-w-5xl mx-auto flex items-center gap-4 overflow-x-auto">
               {MOCK_PARTICIPANTS.map((p) => (
                 <div key={p.id} className="flex items-center gap-2 flex-shrink-0">

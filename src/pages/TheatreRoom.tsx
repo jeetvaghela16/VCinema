@@ -244,12 +244,16 @@ export default function TheatreRoom() {
       {/* ── MAIN AUDITORIUM CANVAS ── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Screen + Controls */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           {/* Cinema Screen Container */}
-          <div className="flex-1 flex items-center justify-center p-3 sm:p-5 md:p-8 relative">
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 relative min-h-[240px]">
             <div
               ref={screenRef}
-              className="w-full max-w-5xl aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)]"
+              style={{
+                width: 'min(100%, calc((100vh - 300px) * 16 / 9))',
+                maxWidth: '64rem',
+              }}
+              className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)]"
               aria-label="Cinema screen"
             >
               {/* Dynamic Film Poster Atmosphere */}
@@ -483,7 +487,7 @@ export default function TheatreRoom() {
           </div>
 
           {/* ── PARTICIPANTS STRIP ── */}
-          <div className="flex-shrink-0 px-4 md:px-8 pb-3">
+          <div className="flex-shrink-0 px-4 md:px-8 pb-6">
             <div className="max-w-5xl mx-auto flex items-center gap-3 overflow-x-auto py-1">
               {participants.map((p) => (
                 <div
