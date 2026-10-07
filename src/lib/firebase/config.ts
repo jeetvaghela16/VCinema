@@ -29,8 +29,6 @@ export const isFirebaseConfigured = Boolean(
 );
 
 let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
 
 if (!getApps().length) {
   if (isFirebaseConfigured) {
@@ -55,8 +53,8 @@ if (!getApps().length) {
   app = getApp();
 }
 
-auth = getAuth(app);
-db = getFirestore(app);
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
 
 // Optional Emulator Integration
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {

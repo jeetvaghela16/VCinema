@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './useAuth';
 import {
   subscribeToTheatre,
@@ -8,6 +8,7 @@ import {
   sendChatMessage,
   joinTheatreRoom,
   leaveTheatreRoom,
+  updateParticipantHeartbeat,
 } from '../services/theatreService';
 import type {
   LiveTheatreRoom,
@@ -24,11 +25,21 @@ export function useTheatre(theatreId: string | undefined) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const roomRef = useRef<LiveTheatreRoom | null>(null);
+  roomRef.current = room;
+
   // Check if current authenticated user is the auditorium host
   const isHost = useMemo(() => {
     if (!user || !room) return false;
     return user.uid === room.hostId;
   }, [user, room]);
+
+  // Check if the host is currently connected and active
+  const isHostOnline = useMemo(() => {
+    if (!room) return false;
+    const hostParticipant = participants.find((p) => p.uid === room.hostId);
+    return hostParticipant ? hostParticipant.isOnline : false;
+  }, [room, participants]);
 
   // Subscribe to room, participants, and chat
   useEffect(() => {
@@ -43,7 +54,7 @@ export function useTheatre(theatreId: string | undefined) {
     // 1. Join room presence if user is logged in
     if (user) {
       joinTheatreRoom(theatreId, user, false).catch((err) => {
-        console.warn('Could not join room presence:', err);
+        console.warn('Could not register room presence:', err);
       });
     }
 
@@ -67,34 +78,77 @@ export function useTheatre(theatreId: string | undefined) {
       setMessages(chatList);
     });
 
+    // 5. Periodic presence heartbeat (every 25 seconds)
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+    if (user) {
+      heartbeatInterval = setInterval(() => {
+        updateParticipantHeartbeat(theatreId, user.uid);
+      }, 25000);
+    }
+
+    // 6. Beforeunload handler for clean departure on tab/browser close
+    const handleBeforeUnload = () => {
+      if (user && theatreId) {
+        leaveTheatreRoom(theatreId, user.uid);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     // Cleanup on unmount
     return () => {
       unsubRoom();
       unsubParticipants();
       unsubMessages();
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+
       if (user && theatreId) {
         leaveTheatreRoom(theatreId, user.uid);
       }
     };
   }, [theatreId, user]);
 
-  // Playback Control: Play
-  const play = useCallback(async () => {
-    if (!theatreId || !isHost) return;
-    await updatePlayback(theatreId, { isPlaying: true });
-  }, [theatreId, isHost]);
+  // Playback Control: Play (with current elapsed position)
+  const play = useCallback(
+    async (currentPosition?: number) => {
+      if (!theatreId || !isHost) return;
+      const targetPos =
+        currentPosition !== undefined
+          ? currentPosition
+          : roomRef.current?.playback?.currentTime ?? 0;
 
-  // Playback Control: Pause
-  const pause = useCallback(async () => {
-    if (!theatreId || !isHost) return;
-    await updatePlayback(theatreId, { isPlaying: false });
-  }, [theatreId, isHost]);
+      await updatePlayback(theatreId, {
+        isPlaying: true,
+        currentTime: targetPos,
+      });
+    },
+    [theatreId, isHost]
+  );
+
+  // Playback Control: Pause (saves exact elapsed position where host paused!)
+  const pause = useCallback(
+    async (currentPosition?: number) => {
+      if (!theatreId || !isHost) return;
+      const targetPos =
+        currentPosition !== undefined
+          ? currentPosition
+          : roomRef.current?.playback?.currentTime ?? 0;
+
+      await updatePlayback(theatreId, {
+        isPlaying: false,
+        currentTime: targetPos,
+      });
+    },
+    [theatreId, isHost]
+  );
 
   // Playback Control: Seek
   const seek = useCallback(
     async (seconds: number) => {
       if (!theatreId || !isHost) return;
-      await updatePlayback(theatreId, { currentTime: Math.max(0, seconds) });
+      await updatePlayback(theatreId, {
+        currentTime: Math.max(0, seconds),
+      });
     },
     [theatreId, isHost]
   );
@@ -118,12 +172,11 @@ export function useTheatre(theatreId: string | undefined) {
 
   // Send Chat Message
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, currentPlaybackTime = 0) => {
       if (!theatreId || !user || !text.trim()) return;
-      const currentPlaybackTime = room?.playback?.currentTime ?? 0;
       await sendChatMessage(theatreId, user, text, currentPlaybackTime);
     },
-    [theatreId, user, room]
+    [theatreId, user]
   );
 
   return {
@@ -133,6 +186,7 @@ export function useTheatre(theatreId: string | undefined) {
     isLoading,
     error,
     isHost,
+    isHostOnline,
     play,
     pause,
     seek,

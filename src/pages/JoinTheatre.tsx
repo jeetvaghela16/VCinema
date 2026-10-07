@@ -173,13 +173,13 @@ export default function JoinTheatre() {
                   type="text"
                   value={code}
                   onChange={handleCodeInput}
-                  placeholder="VCX-0000"
+                  placeholder="VCX-XXXXXX"
                   className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-5 py-4 text-2xl font-mono text-center text-vc-text-primary placeholder-vc-text-muted/30 tracking-[0.3em] focus:border-vc-gold/50 focus:outline-none transition-colors"
                   autoComplete="off"
                   aria-describedby="code-hint"
                 />
                 <p id="code-hint" className="text-[11px] text-vc-text-muted mt-2 text-center font-mono">
-                  Format: VCX-#### (e.g. VCX-8921)
+                  Format: VCX-XXXXXX (e.g. VCX-7K9M2Q)
                 </p>
               </div>
 

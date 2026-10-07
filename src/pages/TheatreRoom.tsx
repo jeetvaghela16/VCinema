@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useTheatre } from '../hooks/useTheatre';
 import { movies } from '../data/movies';
 import { PosterArtwork } from '../components/cards/PosterArtwork';
-import { formatTimecode } from '../services/theatreService';
+import { formatTimecode, calculateAuthoritativePosition } from '../services/theatreService';
 import { cn } from '../utils/cn';
 
 export default function TheatreRoom() {
@@ -18,6 +18,7 @@ export default function TheatreRoom() {
     isLoading,
     error,
     isHost,
+    isHostOnline,
     play,
     pause,
     seek,
@@ -34,26 +35,51 @@ export default function TheatreRoom() {
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
+  const localTimeRef = useRef(0);
+  localTimeRef.current = localTime;
 
-  // Sync local timer with room playback
+  // Authoritative Playback Synchronization Engine
   useEffect(() => {
     if (!room?.playback) return;
 
-    setLocalTime(room.playback.currentTime);
+    const playback = room.playback;
 
-    if (room.playback.isPlaying) {
-      const interval = setInterval(() => {
-        setLocalTime((prev) => {
-          if (prev >= room.playback.duration) {
-            return room.playback.duration;
-          }
-          return prev + 1;
-        });
-      }, 1000);
+    // 1. Calculate authoritative target time based on wall-clock elapsed time
+    const authoritativeTime = calculateAuthoritativePosition(playback);
 
-      return () => clearInterval(interval);
+    if (!playback.isPlaying) {
+      // If paused, strictly lock local time to the stored pause position
+      setLocalTime(playback.currentTime);
+      return;
     }
-  }, [room?.playback?.currentTime, room?.playback?.isPlaying, room?.playback?.duration]);
+
+    // If playing:
+    // If drift > 1.5 seconds (e.g. late joiner or host seek), immediately snap to authoritative position
+    const currentDrift = Math.abs(localTimeRef.current - authoritativeTime);
+    if (currentDrift > 1.5 || localTimeRef.current === 0) {
+      setLocalTime(authoritativeTime);
+    }
+
+    // Advance local timer every 1000ms while running, with periodic drift checks
+    const interval = setInterval(() => {
+      setLocalTime((prev) => {
+        const target = calculateAuthoritativePosition(playback);
+        const drift = Math.abs(prev - target);
+
+        // Gentle correction: if drift > 1.5 seconds, resync to authoritative wall-clock time
+        if (drift > 1.5) {
+          return target;
+        }
+
+        if (prev >= playback.duration) {
+          return playback.duration;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [room?.playback]);
 
   // Auto-scroll chat to bottom on new message
   useEffect(() => {
@@ -64,9 +90,9 @@ export default function TheatreRoom() {
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatText.trim()) return;
-    const textToSend = chatText;
+    const textToSend = chatText.trim().slice(0, 300);
     setChatText('');
-    await sendMessage(textToSend);
+    await sendMessage(textToSend, localTime);
   };
 
   // Handle Copy Invite Link
@@ -91,7 +117,7 @@ export default function TheatreRoom() {
     }
   };
 
-  // Handle Seek click
+  // Handle Seek click (Host only)
   const handleSeekClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isHost || !room?.playback?.duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -99,6 +125,16 @@ export default function TheatreRoom() {
     const percent = Math.max(0, Math.min(1, clickX / rect.width));
     const targetSeconds = Math.round(percent * room.playback.duration);
     seek(targetSeconds);
+  };
+
+  // Handle Host Toggle Play / Pause (Passes exact elapsed position)
+  const handleTogglePlayPause = () => {
+    if (!isHost || !room?.playback) return;
+    if (room.playback.isPlaying) {
+      pause(localTime);
+    } else {
+      play(localTime);
+    }
   };
 
   if (isLoading) {
@@ -182,7 +218,7 @@ export default function TheatreRoom() {
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" aria-hidden="true" />
             <span className="text-[10px] font-mono text-vc-text-muted">
-              {participants.length} watching
+              {participants.filter((p) => p.isOnline).length} watching
             </span>
           </div>
         </div>
@@ -252,13 +288,19 @@ export default function TheatreRoom() {
                 </span>
               </div>
 
-              {/* Host vs Viewer Badge (Top Right) */}
+              {/* Host vs Viewer Badge / Disconnected Notice (Top Right) */}
               <div className="absolute top-4 right-4 z-10">
                 {isHost ? (
                   <div className="flex items-center gap-1.5 bg-vc-gold/15 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-vc-gold/40">
                     <span className="text-xs">👑</span>
                     <span className="text-[10px] font-mono tracking-widest text-vc-gold uppercase font-semibold">
                       You are Host
+                    </span>
+                  </div>
+                ) : !isHostOnline ? (
+                  <div className="flex items-center gap-1.5 bg-vc-burgundy/30 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-vc-burgundy/60">
+                    <span className="text-[10px] text-vc-text-primary font-mono">
+                      ⚠ Host Disconnected &middot; Projection on Hold
                     </span>
                   </div>
                 ) : (
@@ -293,7 +335,7 @@ export default function TheatreRoom() {
             <div
               className="max-w-5xl mx-auto glass-panel rounded-[4px] px-4 md:px-6 py-3 border border-white/5"
             >
-              {/* Progress Slider (Interactive for Host) */}
+              {/* Progress Slider (Interactive ONLY for Host) */}
               <div
                 onClick={handleSeekClick}
                 className={cn(
@@ -304,7 +346,7 @@ export default function TheatreRoom() {
                 aria-valuenow={progressPercent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                title={isHost ? 'Click to seek projection' : 'Controlled by Host'}
+                title={isHost ? 'Click to seek projection' : `Playback controlled by host (${room.hostName})`}
               >
                 <div
                   className="h-full bg-vc-gold rounded-full relative transition-all duration-200"
@@ -315,15 +357,15 @@ export default function TheatreRoom() {
               <div className="flex items-center justify-between">
                 {/* Left Controls */}
                 <div className="flex items-center gap-3 sm:gap-4">
-                  {/* Play/Pause Button */}
+                  {/* Play/Pause Button (Strictly Host Only) */}
                   <button
-                    onClick={() => (room.playback.isPlaying ? pause() : play())}
+                    onClick={handleTogglePlayPause}
                     disabled={!isHost}
                     className={cn(
                       'w-9 h-9 flex items-center justify-center rounded-full transition-all',
                       isHost
                         ? 'text-white hover:bg-white/10 hover:text-vc-gold active:scale-95'
-                        : 'text-white/25 cursor-not-allowed'
+                        : 'text-white/20 cursor-not-allowed'
                     )}
                     aria-label={room.playback.isPlaying ? 'Pause' : 'Play'}
                     title={!isHost ? `Only host (${room.hostName}) can toggle playback` : undefined}
@@ -340,7 +382,7 @@ export default function TheatreRoom() {
                     )}
                   </button>
 
-                  {/* Volume Slider */}
+                  {/* Volume Slider (Local Control for All) */}
                   <div className="flex items-center gap-2">
                     <button
                       className="text-white/60 hover:text-white transition-colors"
@@ -374,7 +416,7 @@ export default function TheatreRoom() {
                     />
                   </div>
 
-                  {/* Time Counter */}
+                  {/* Synchronized Time Counter */}
                   <span className="text-[11px] font-mono text-white/50 tracking-wider">
                     {formatTimecode(localTime)} / {formatTimecode(duration)}
                   </span>
@@ -412,7 +454,7 @@ export default function TheatreRoom() {
                 </div>
               </div>
 
-              {/* Host Specific Management Strip */}
+              {/* Host Specific Controls Strip (Visible ONLY to Host) */}
               {isHost && (
                 <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-1.5">
@@ -444,7 +486,13 @@ export default function TheatreRoom() {
           <div className="flex-shrink-0 px-4 md:px-8 pb-3">
             <div className="max-w-5xl mx-auto flex items-center gap-3 overflow-x-auto py-1">
               {participants.map((p) => (
-                <div key={p.uid} className="flex items-center gap-2 flex-shrink-0 bg-black/40 px-2.5 py-1.5 rounded-[4px] border border-white/5">
+                <div
+                  key={p.uid}
+                  className={cn(
+                    'flex items-center gap-2 flex-shrink-0 bg-black/40 px-2.5 py-1.5 rounded-[4px] border transition-opacity',
+                    p.isOnline ? 'border-white/5 opacity-100' : 'border-white/5 opacity-50'
+                  )}
+                >
                   <div className="relative">
                     <div
                       className={cn(
@@ -461,6 +509,7 @@ export default function TheatreRoom() {
                         'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-black',
                         p.isOnline ? 'bg-green-500' : 'bg-white/20'
                       )}
+                      title={p.isOnline ? 'Online' : 'Offline'}
                     />
                   </div>
                   <div>
@@ -512,33 +561,31 @@ export default function TheatreRoom() {
               ) : (
                 messages.map((msg) => {
                   const isMsgHost = msg.userId === room.hostId;
-                  const isSystem = msg.userId === 'system';
+                  const isCurrentUser = msg.userId === user?.uid;
                   return (
                     <div
                       key={msg.id}
                       className={cn(
                         'flex gap-2.5',
-                        isSystem && 'bg-white/[0.03] p-2 rounded-[3px] border border-white/5'
+                        isCurrentUser && 'bg-white/[0.02] p-1.5 rounded-[3px]'
                       )}
                     >
-                      {!isSystem && (
-                        <div
-                          className={cn(
-                            'w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold mt-0.5',
-                            isMsgHost
-                              ? 'bg-vc-gold/15 border border-vc-gold/40 text-vc-gold'
-                              : 'bg-vc-bg-card border border-vc-border text-vc-text-muted'
-                          )}
-                        >
-                          {msg.userName ? msg.userName[0].toUpperCase() : 'V'}
-                        </div>
-                      )}
+                      <div
+                        className={cn(
+                          'w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold mt-0.5',
+                          isMsgHost
+                            ? 'bg-vc-gold/15 border border-vc-gold/40 text-vc-gold'
+                            : 'bg-vc-bg-card border border-vc-border text-vc-text-muted'
+                        )}
+                      >
+                        {msg.userName ? msg.userName[0].toUpperCase() : 'V'}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-1.5 mb-0.5">
                           <span
                             className={cn(
                               'text-[11px] font-semibold truncate',
-                              isMsgHost ? 'text-vc-gold' : isSystem ? 'text-vc-gold-dim' : 'text-vc-text-primary'
+                              isMsgHost ? 'text-vc-gold' : 'text-vc-text-primary'
                             )}
                           >
                             {msg.userName}
@@ -567,13 +614,13 @@ export default function TheatreRoom() {
                     value={chatText}
                     onChange={(e) => setChatText(e.target.value)}
                     placeholder="Message auditorium..."
-                    maxLength={200}
+                    maxLength={300}
                     className="flex-1 bg-white/5 border border-white/10 rounded-[3px] px-3 py-2 text-xs text-vc-text-primary placeholder-white/30 focus:border-vc-gold/50 focus:outline-none transition-colors"
                   />
                   <button
                     type="submit"
                     disabled={!chatText.trim()}
-                    className="px-3 py-2 bg-vc-gold text-black rounded-[3px] text-xs font-semibold hover:bg-vc-gold/90 disabled:opacity-40 transition-all"
+                    className="px-3 py-2 bg-vc-gold text-black rounded-[3px] text-xs font-semibold hover:bg-vc-gold/90 disabled:opacity-40 transition-all font-mono"
                   >
                     Send
                   </button>
@@ -592,7 +639,7 @@ export default function TheatreRoom() {
       </div>
 
       {/* ── CHANGE FILM MODAL (HOST ONLY) ── */}
-      {showFilmModal && (
+      {showFilmModal && isHost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="glass-panel w-full max-w-lg rounded-[6px] p-6 border border-vc-gold/30 shadow-[0_20px_60px_rgba(0,0,0,0.9)]">
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">

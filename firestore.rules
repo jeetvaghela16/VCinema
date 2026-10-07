@@ -12,7 +12,9 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users Collection: /users/{userId}
+    // =========================================================================
+    // USERS COLLECTION: /users/{userId}
+    // =========================================================================
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
@@ -20,23 +22,67 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Theatres Collection: /theatres/{theatreId}
+    // =========================================================================
+    // THEATRES COLLECTION: /theatres/{theatreId}
+    // =========================================================================
     match /theatres/{theatreId} {
+      // Public read allows viewers to query by 6-character room code or check passkey
       allow read: if true;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.auth.uid == resource.data.hostId;
 
-      // Real-time Active Participants
+      // Only authenticated users can create an auditorium; must be designated as the host
+      allow create: if isAuthenticated()
+        && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.code is string;
+
+      // CRITICAL: ONLY THE HOST can update the theatre document (playback state, film, config).
+      // Host identity is strictly immutable (prevent unauthorized takeover).
+      allow update: if isAuthenticated()
+        && resource.data.hostId == request.auth.uid
+        && request.resource.data.hostId == resource.data.hostId;
+
+      // ONLY THE HOST can delete the theatre room
+      allow delete: if isAuthenticated() && resource.data.hostId == request.auth.uid;
+
+      // -----------------------------------------------------------------------
+      // PARTICIPANTS SUBCOLLECTION: /theatres/{theatreId}/participants/{participantId}
+      // -----------------------------------------------------------------------
       match /participants/{participantId} {
         allow read: if true;
-        allow write: if isAuthenticated();
+
+        // A user can ONLY create or update their OWN participant document
+        // Cannot impersonate another user UID
+        allow create, update: if isAuthenticated()
+          && request.auth.uid == participantId
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() <= 50;
+
+        // A user can remove themselves when leaving, OR the host can remove a participant
+        allow delete: if isAuthenticated() && (
+          request.auth.uid == participantId ||
+          request.auth.uid == get(/databases/$(database)/documents/theatres/$(theatreId)).data.hostId
+        );
       }
 
-      // Live Theatre Chat Messages
+      // -----------------------------------------------------------------------
+      // LIVE CHAT SUBCOLLECTION: /theatres/{theatreId}/messages/{messageId}
+      // -----------------------------------------------------------------------
       match /messages/{messageId} {
         allow read: if true;
-        allow create: if isAuthenticated();
+
+        // Must be authenticated; sender UID must match auth UID; message length 1-300 chars
+        allow create: if isAuthenticated()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.message is string
+          && request.resource.data.message.size() > 0
+          && request.resource.data.message.size() <= 300
+          && request.resource.data.userName is string
+          && request.resource.data.userName.size() <= 50;
+
+        // Chat messages are immutable once written; deletions disallowed
         allow update, delete: if false;
       }
     }

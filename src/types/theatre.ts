@@ -4,9 +4,11 @@ export type TheatreFormat = 'private' | 'friends' | 'family' | 'open';
 
 export interface PlaybackState {
   isPlaying: boolean;
-  currentTime: number; // in seconds
+  currentTime: number; // in seconds (elapsed position at lastUpdated)
   duration: number; // in seconds
-  lastUpdated: number; // epoch ms
+  lastUpdated: number; // epoch ms when this state was written
+  playbackRate: number; // e.g. 1.0 (default standard rate)
+  version: number; // monotonic sequence counter to prevent race conditions
   currentMovieId: string;
   currentMovieTitle: string;
 }
@@ -18,7 +20,7 @@ export interface TheatreParticipant {
   isHost: boolean;
   isOnline: boolean;
   joinedAt: number;
-  lastSeen: number;
+  lastSeen: number; // epoch ms for heartbeat & stale detection
 }
 
 export interface TheatreChatMessage {
@@ -34,7 +36,7 @@ export interface TheatreChatMessage {
 
 export interface LiveTheatreRoom {
   id: string;
-  code: string; // 6-8 chars uppercase e.g. "VCX-4821"
+  code: string; // e.g. "VCX-7K9M2Q" (normalized uppercase)
   name: string;
   format: TheatreFormat;
   hostId: string;

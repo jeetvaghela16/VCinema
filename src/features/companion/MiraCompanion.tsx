@@ -23,7 +23,7 @@ const PRESET_EXCHANGES: Record<string, ConversationEntry[]> = {
       role: 'mira',
       text: (
         <span>
-          A discerning choice. I would direct you to <strong className="font-serif text-vc-gold font-semibold tracking-wide">"Neon Requiem" (2026)</strong>. Directed with rain-drenched restraint, its monochromatic neon lighting and saxophone-driven score make it an acoustic masterpiece for a midnight screening.
+          A discerning choice. I would direct you to <strong className="font-serif text-vc-gold font-semibold tracking-wide">&ldquo;Neon Requiem&rdquo; (2026)</strong>. Directed with rain-drenched restraint, its monochromatic neon lighting and saxophone-driven score make it an acoustic masterpiece for a midnight screening.
         </span>
       ),
       time: 'Just now',
@@ -41,7 +41,7 @@ const PRESET_EXCHANGES: Record<string, ConversationEntry[]> = {
       role: 'mira',
       text: (
         <span>
-          <strong className="font-serif text-vc-gold font-semibold tracking-wide">"The Grand Horizon"</strong> was filmed in 65mm anamorphic. The pacing allows viewers in your virtual theatre to linger on landscape frames together without dialogue talking over the quiet emotional crescendo.
+          <strong className="font-serif text-vc-gold font-semibold tracking-wide">&ldquo;The Grand Horizon&rdquo;</strong> was filmed in 65mm anamorphic. The pacing allows viewers in your virtual theatre to linger on landscape frames together without dialogue talking over the quiet emotional crescendo.
         </span>
       ),
       time: 'Just now',
@@ -59,7 +59,7 @@ const PRESET_EXCHANGES: Record<string, ConversationEntry[]> = {
       role: 'mira',
       text: (
         <span>
-          For two viewers, <strong className="font-serif text-vc-gold font-semibold tracking-wide">"Ember Falls" (2025)</strong> is evocative and delicately calibrated. It holds a 7.9 rating and thrives in the focused silence of a 1-on-1 private auditorium.
+          For two viewers, <strong className="font-serif text-vc-gold font-semibold tracking-wide">&ldquo;Ember Falls&rdquo; (2025)</strong> is evocative and delicately calibrated. It holds a 7.9 rating and thrives in the focused silence of a 1-on-1 private auditorium.
         </span>
       ),
       time: 'Just now',
@@ -79,7 +79,7 @@ const INITIAL_CONVERSATION: ConversationEntry[] = [
     role: 'mira',
     text: (
       <span>
-        Good evening. For a party of four, I recommend <strong className="font-serif text-vc-gold font-semibold tracking-wide">"The Silent Archive" (2024)</strong>. It is a slow-burn investigation involving a sealed century-old library vault. The clues invite active deduction among all four participants as the reels turn.
+        Good evening. For a party of four, I recommend <strong className="font-serif text-vc-gold font-semibold tracking-wide">&ldquo;The Silent Archive&rdquo; (2024)</strong>. It is a slow-burn investigation involving a sealed century-old library vault. The clues invite active deduction among all four participants as the reels turn.
       </span>
     ),
     time: '21:04',
@@ -139,7 +139,7 @@ export default function MiraCompanion() {
               </div>
 
               <p className="text-vc-text-muted/95 text-xs sm:text-sm leading-relaxed mb-6">
-                Mira acts as your personal cinema maître d'. She assesses the moods of your guests, cross-references screening histories, and curates authorized films suited for your auditorium format.
+                Mira acts as your personal cinema maître d&apos;. She assesses the moods of your guests, cross-references screening histories, and curates authorized films suited for your auditorium format.
               </p>
 
               {/* Curatorial Protocol Attributes */}
@@ -247,7 +247,7 @@ export default function MiraCompanion() {
                       : 'border-vc-border/80 text-vc-text-muted hover:border-vc-gold/40 hover:text-vc-text-primary',
                   )}
                 >
-                  ✦ Why "The Grand Horizon"?
+                  ✦ Why &ldquo;The Grand Horizon&rdquo;?
                 </button>
                 <button
                   type="button"

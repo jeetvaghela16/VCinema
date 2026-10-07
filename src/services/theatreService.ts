@@ -23,24 +23,52 @@ import type {
 import type { AuthenticatedUser } from '../types/auth';
 
 /**
- * Generates an uppercase 6-character room code in the format "VCX-####"
+ * Character set avoiding ambiguous characters (0, O, 1, I)
+ */
+const CODE_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/**
+ * Generates an uppercase 6-character room code in the format "VCX-XXXXXX"
+ * Provides ~1.07 billion collision-resistant unique combinations.
  */
 export function generateRoomCode(): string {
-  const digits = Math.floor(1000 + Math.random() * 9000);
-  return `VCX-${digits}`;
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    const randomIndex = Math.floor(Math.random() * CODE_CHARSET.length);
+    result += CODE_CHARSET[randomIndex];
+  }
+  return `VCX-${result}`;
 }
 
 /**
- * Format seconds into a digital timestamp (e.g. 3674 -> "1:01:14" or "0:45:10")
+ * Format seconds into a digital timestamp (e.g. 3674 -> "1:01:14" or 45 -> "0:45")
  */
 export function formatTimecode(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
+  const safeSec = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(safeSec / 3600);
+  const m = Math.floor((safeSec % 3600) / 60);
+  const s = safeSec % 60;
   if (h > 0) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Calculates authoritative target position in seconds based on wall-clock elapsed time.
+ * Synchronization Formula:
+ * targetPosition = storedPosition + (now - lastUpdated) * playbackRate
+ */
+export function calculateAuthoritativePosition(playback: PlaybackState): number {
+  if (!playback.isPlaying) {
+    return Math.min(playback.currentTime, playback.duration);
+  }
+  const now = Date.now();
+  const elapsedMs = Math.max(0, now - (playback.lastUpdated || now));
+  const elapsedSeconds = elapsedMs / 1000;
+  const rate = playback.playbackRate || 1.0;
+  const calculated = playback.currentTime + elapsedSeconds * rate;
+  return Math.min(calculated, playback.duration);
 }
 
 export interface CreateTheatreParams {
@@ -53,7 +81,7 @@ export interface CreateTheatreParams {
 }
 
 /**
- * Creates a new Virtual Theatre room in Firestore
+ * Creates a new Virtual Theatre room in Firestore with collision-checked room code
  */
 export async function createTheatreRoom(
   params: CreateTheatreParams,
@@ -63,12 +91,21 @@ export async function createTheatreRoom(
     throw new Error('Firebase is not configured. Please add your credentials to .env.local.');
   }
 
+  // Generate collision-resistant unique room code (retry up to 5 times)
+  let roomCode = generateRoomCode();
+  let attempts = 0;
+  while (attempts < 5) {
+    const existing = await getTheatreByCode(roomCode);
+    if (!existing) break;
+    roomCode = generateRoomCode();
+    attempts++;
+  }
+
   const theatreRef = doc(collection(db, 'theatres'));
   const theatreId = theatreRef.id;
-  const roomCode = generateRoomCode();
   const selectedMovie = movies.find((m) => m.id === params.movieId) ?? movies[0];
 
-  // Default duration of movie parsed from e.g. "2h 18m" -> 8280 seconds
+  // Default duration in seconds (2h 18m -> 8280s)
   const initialDuration = 8280;
 
   const initialPlayback: PlaybackState = {
@@ -76,6 +113,8 @@ export async function createTheatreRoom(
     currentTime: 0,
     duration: initialDuration,
     lastUpdated: Date.now(),
+    playbackRate: 1.0,
+    version: 1,
     currentMovieId: selectedMovie.id,
     currentMovieTitle: selectedMovie.title,
   };
@@ -83,10 +122,10 @@ export async function createTheatreRoom(
   const newRoom: LiveTheatreRoom = {
     id: theatreId,
     code: roomCode,
-    name: params.name.trim() || 'Midnight Cinema 01',
+    name: params.name.trim().slice(0, 60) || 'Midnight Cinema 01',
     format: params.format,
     hostId: host.uid,
-    hostName: host.displayName || 'Cinema Host',
+    hostName: (host.displayName || 'Cinema Host').slice(0, 50),
     hostPhoto: host.photoURL || null,
     maxViewers: params.maxViewers,
     isPasswordProtected: params.isPasswordProtected,
@@ -97,13 +136,13 @@ export async function createTheatreRoom(
     isActive: true,
   };
 
-  // 1. Create Room Document
+  // 1. Create Room Document (Authenticated Host Only)
   await setDoc(theatreRef, newRoom);
 
   // 2. Register Host as the first Participant
   const hostParticipant: TheatreParticipant = {
     uid: host.uid,
-    displayName: host.displayName || 'Cinema Host',
+    displayName: (host.displayName || 'Cinema Host').slice(0, 50),
     photoURL: host.photoURL || null,
     isHost: true,
     isOnline: true,
@@ -114,14 +153,14 @@ export async function createTheatreRoom(
   const hostDocRef = doc(db, 'theatres', theatreId, 'participants', host.uid);
   await setDoc(hostDocRef, hostParticipant);
 
-  // 3. Post a Welcome System Message to Theatre Chat
+  // 3. Post Initial System Message to Theatre Chat (Authenticated as host)
   const welcomeMessageRef = doc(collection(db, 'theatres', theatreId, 'messages'));
   await setDoc(welcomeMessageRef, {
     id: welcomeMessageRef.id,
     theatreId,
-    userId: 'system',
-    userName: 'VCinema Concierge',
-    message: `Auditorium "${newRoom.name}" opened. Host ${newRoom.hostName} controls projection.`,
+    userId: host.uid,
+    userName: (host.displayName || 'Cinema Host').slice(0, 50),
+    message: `Auditorium initialized. Host controls projection.`,
     timestamp: '0:00',
     createdAt: Date.now(),
   });
@@ -130,13 +169,17 @@ export async function createTheatreRoom(
 }
 
 /**
- * Looks up a Theatre Room by room code (e.g. "VCX-4821")
+ * Looks up a Theatre Room by room code (e.g. "VCX-7K9M2Q")
  */
 export async function getTheatreByCode(code: string): Promise<LiveTheatreRoom | null> {
   if (!isFirebaseConfigured) return null;
 
   const cleanCode = code.trim().toUpperCase();
-  const q = query(collection(db, 'theatres'), where('code', '==', cleanCode), where('isActive', '==', true));
+  const q = query(
+    collection(db, 'theatres'),
+    where('code', '==', cleanCode),
+    where('isActive', '==', true)
+  );
   const snap = await getDocs(q);
 
   if (snap.empty) {
@@ -172,7 +215,7 @@ export async function joinTheatreRoom(
   const participantRef = doc(db, 'theatres', theatreId, 'participants', user.uid);
   const participantData: TheatreParticipant = {
     uid: user.uid,
-    displayName: user.displayName || 'Cinema Viewer',
+    displayName: (user.displayName || 'Cinema Viewer').slice(0, 50),
     photoURL: user.photoURL || null,
     isHost,
     isOnline: true,
@@ -181,6 +224,26 @@ export async function joinTheatreRoom(
   };
 
   await setDoc(participantRef, participantData, { merge: true });
+}
+
+/**
+ * Heartbeat: Updates participant lastSeen timestamp to prevent stale online status
+ */
+export async function updateParticipantHeartbeat(
+  theatreId: string,
+  userId: string
+): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  try {
+    const participantRef = doc(db, 'theatres', theatreId, 'participants', userId);
+    await updateDoc(participantRef, {
+      lastSeen: Date.now(),
+      isOnline: true,
+    });
+  } catch {
+    // Gracefully handle if user already left
+  }
 }
 
 /**
@@ -224,6 +287,7 @@ export function subscribeToTheatre(
 
 /**
  * Subscribes to real-time active participants in the auditorium
+ * Filters out stale participants whose last heartbeat was > 60 seconds ago
  */
 export function subscribeToParticipants(
   theatreId: string,
@@ -236,10 +300,21 @@ export function subscribeToParticipants(
 
   const colRef = collection(db, 'theatres', theatreId, 'participants');
   return onSnapshot(colRef, (snap) => {
+    const now = Date.now();
+    const staleThresholdMs = 60000; // 60 seconds
+
     const list: TheatreParticipant[] = [];
     snap.forEach((docSnap) => {
-      list.push(docSnap.data() as TheatreParticipant);
+      const data = docSnap.data() as TheatreParticipant;
+      const isHeartbeatFresh = now - (data.lastSeen || 0) < staleThresholdMs;
+      const isActuallyOnline = data.isOnline && isHeartbeatFresh;
+
+      list.push({
+        ...data,
+        isOnline: isActuallyOnline,
+      });
     });
+
     // Sort hosts first, then alphabetical
     list.sort((a, b) => {
       if (a.isHost === b.isHost) return a.displayName.localeCompare(b.displayName);
@@ -275,6 +350,7 @@ export function subscribeToMessages(
 
 /**
  * Host updates playback state (play, pause, seek, movie change)
+ * Increments monotonic version number to order state updates.
  */
 export async function updatePlayback(
   theatreId: string,
@@ -287,9 +363,12 @@ export async function updatePlayback(
   if (!docSnap.exists()) return;
 
   const currentPlayback = docSnap.data().playback as PlaybackState;
+  const nextVersion = (currentPlayback.version || 0) + 1;
+
   const updated: PlaybackState = {
     ...currentPlayback,
     ...partialPlayback,
+    version: nextVersion,
     lastUpdated: Date.now(),
   };
 
@@ -301,6 +380,7 @@ export async function updatePlayback(
 
 /**
  * Sends a real-time message to theatre chat
+ * Validates message size (1-300 chars) before writing.
  */
 export async function sendChatMessage(
   theatreId: string,
@@ -308,16 +388,17 @@ export async function sendChatMessage(
   message: string,
   currentTime = 0
 ): Promise<void> {
-  if (!isFirebaseConfigured || !message.trim()) return;
+  const trimmed = message.trim().slice(0, 300);
+  if (!isFirebaseConfigured || !trimmed) return;
 
   const msgRef = doc(collection(db, 'theatres', theatreId, 'messages'));
   const newMsg: TheatreChatMessage = {
     id: msgRef.id,
     theatreId,
     userId: user.uid,
-    userName: user.displayName || 'Cinema Viewer',
+    userName: (user.displayName || 'Cinema Viewer').slice(0, 50),
     userPhoto: user.photoURL || null,
-    message: message.trim(),
+    message: trimmed,
     timestamp: formatTimecode(currentTime),
     createdAt: Date.now(),
   };
