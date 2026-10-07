@@ -10,6 +10,7 @@ const Series = lazy(() => import('./pages/Series'));
 const CreateTheatre = lazy(() => import('./pages/CreateTheatre'));
 const JoinTheatre = lazy(() => import('./pages/JoinTheatre'));
 const TheatreDemo = lazy(() => import('./pages/TheatreDemo'));
+const TheatreRoom = lazy(() => import('./pages/TheatreRoom'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Login = lazy(() => import('./pages/Login'));
@@ -61,6 +62,7 @@ function App() {
 
             {/* Standalone Fullscreen Theatre Player */}
             <Route path="/theatre/demo" element={<TheatreDemo />} />
+            <Route path="/theatre/:roomId" element={<TheatreRoom />} />
           </Routes>
         </Suspense>
       </AuthProvider>

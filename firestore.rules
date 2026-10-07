@@ -13,14 +13,32 @@ service cloud.firestore {
     }
 
     // Users Collection: /users/{userId}
-    // - Any authenticated user can read other users' profiles (needed for theatre participant avatars & names)
-    // - Only the authenticated user can create or update their own user profile document
-    // - Enforces that the stored uid matches the authenticated Firebase auth uid
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
       allow update: if isOwner(userId);
       allow delete: if false;
+    }
+
+    // Theatres Collection: /theatres/{theatreId}
+    match /theatres/{theatreId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.hostId;
+
+      // Real-time Active Participants
+      match /participants/{participantId} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+
+      // Live Theatre Chat Messages
+      match /messages/{messageId} {
+        allow read: if true;
+        allow create: if isAuthenticated();
+        allow update, delete: if false;
+      }
     }
 
     // Default deny rule for all other paths

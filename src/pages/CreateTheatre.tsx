@@ -1,24 +1,68 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { theatreTypes } from '../data/theatres';
 import { movies } from '../data/movies';
 import { cn } from '../utils/cn';
+import { useAuth } from '../hooks/useAuth';
+import { createTheatreRoom } from '../services/theatreService';
+import type { TheatreFormat } from '../types/theatre';
 
 export default function CreateTheatre() {
-  const [selectedType, setSelectedType] = useState('friends');
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [selectedType, setSelectedType] = useState<TheatreFormat>('friends');
   const [theatreName, setTheatreName] = useState('Midnight Screen 01');
   const [maxViewers, setMaxViewers] = useState(10);
   const [selectedMovieId, setSelectedMovieId] = useState('m1');
   const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedTypeData = theatreTypes.find((t) => t.id === selectedType) ?? theatreTypes[0];
   const maxLimit = selectedTypeData.maxViewers;
   const minLimit = 2;
 
+  const handleCreate = async () => {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: '/create-theatre' } } });
+      return;
+    }
+
+    if (!theatreName.trim()) {
+      setErrorMessage('Please give your virtual auditorium a name.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const room = await createTheatreRoom(
+        {
+          name: theatreName,
+          format: selectedType,
+          maxViewers,
+          movieId: selectedMovieId,
+          isPasswordProtected: usePassword,
+          password: usePassword ? password : '',
+        },
+        user
+      );
+
+      navigate(`/theatre/${room.id}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to initialize theatre room.';
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Keep slider and displayed capacity strictly synchronized when theatre type changes
   const handleTypeSelect = (typeId: string) => {
-    setSelectedType(typeId);
+    setSelectedType(typeId as TheatreFormat);
     const targetType = theatreTypes.find((t) => t.id === typeId);
     if (targetType) {
       setMaxViewers((current) => Math.min(Math.max(current, minLimit), targetType.maxViewers));
@@ -372,24 +416,48 @@ export default function CreateTheatre() {
             )}
           </div>
 
+          {/* ── Error Banner ── */}
+          {errorMessage && (
+            <div className="p-3.5 rounded-[4px] bg-vc-burgundy/20 border border-vc-burgundy/50 text-vc-text-primary text-xs flex items-center gap-2 animate-slide-down">
+              <span>⚠</span>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* ── Submit & Initialize Auditorium ── */}
           <div className="pt-4 space-y-3">
             <button
               type="button"
-              className="w-full py-4 bg-vc-gold text-black font-semibold text-sm tracking-wide rounded-[4px] hover:bg-vc-gold/90 transition-all duration-200 active:scale-[0.99] shadow-[0_4px_24px_rgba(198,167,106,0.35)] flex items-center justify-center gap-2"
-              onClick={() => alert(`Auditorium "${theatreName}" configured with ${maxViewers} seats! (UI Demo — backend arriving in Step 2)`)}
+              disabled={isSubmitting}
+              onClick={handleCreate}
+              className="w-full py-4 bg-vc-gold text-black font-semibold text-sm tracking-wide rounded-[4px] hover:bg-vc-gold/90 transition-all duration-200 active:scale-[0.99] shadow-[0_4px_24px_rgba(198,167,106,0.35)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M5 3l14 9-14 9V3z" />
-              </svg>
-              <span>INITIALIZE VIRTUAL AUDITORIUM</span>
+              {isSubmitting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  <span>INITIALIZING SCREENING ROOM...</span>
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M5 3l14 9-14 9V3z" />
+                  </svg>
+                  <span>INITIALIZE VIRTUAL AUDITORIUM</span>
+                </>
+              )}
             </button>
 
             <p className="text-center text-xs text-vc-text-muted">
-              Authentication will synchronize and persist rooms across devices.{' '}
-              <Link to="/settings" className="text-vc-gold hover:underline">
-                View Account Settings
-              </Link>
+              {user ? (
+                <span>Screening room will be linked to host <strong>{user.displayName || 'Cinema Host'}</strong></span>
+              ) : (
+                <span>
+                  Sign in required to host.{' '}
+                  <Link to="/login" state={{ from: { pathname: '/create-theatre' } }} className="text-vc-gold hover:underline">
+                    Sign In
+                  </Link>
+                </span>
+              )}
             </p>
           </div>
 
