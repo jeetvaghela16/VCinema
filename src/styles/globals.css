@@ -1,8 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-vc-bg-base: var(--vc-bg-base);
+  --color-vc-bg-elevated: var(--vc-bg-elevated);
+  --color-vc-bg-card: var(--vc-bg-card);
+  --color-vc-text-primary: var(--vc-text-primary);
+  --color-vc-text-muted: var(--vc-text-muted);
+  --color-vc-gold: var(--vc-gold);
+  --color-vc-gold-dim: var(--vc-gold-dim);
+  --color-vc-gold-bright: #e2c98a;
+  --color-vc-burgundy: var(--vc-burgundy);
+  --color-vc-border: var(--vc-border);
+  --color-vc-border-strong: var(--vc-border-strong);
+}
 
 /* ============================================================
    VCinema Design Tokens

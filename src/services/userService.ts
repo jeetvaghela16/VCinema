@@ -4,6 +4,7 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
+  type FieldValue,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../lib/firebase/config';
 import type { AuthenticatedUser } from '../types/auth';
@@ -124,7 +125,7 @@ export async function updateUserProfile(
 
   try {
     const userDocRef = doc(db, 'users', uid);
-    const sanitizedUpdate: Record<string, unknown> = {
+    const sanitizedUpdate: Record<string, string | null | FieldValue> = {
       updatedAt: serverTimestamp(),
     };
     if (partial.displayName !== undefined) {
