@@ -383,7 +383,15 @@ export interface StreamServer {
   badge: string;
   category: 'multi' | 'hindi' | 'english' | 'global';
   audioSupport: string;
-  getUrl: (tmdbId: number, isTv: boolean, season?: number, episode?: number, audioLang?: string) => string;
+  syncRating?: 'perfect' | 'high' | 'standard';
+  getUrl: (
+    tmdbId: number,
+    isTv: boolean,
+    season?: number,
+    episode?: number,
+    audioLang?: string,
+    startSeconds?: number
+  ) => string;
 }
 
 export interface AudioTrackOption {
@@ -450,81 +458,127 @@ export const STREAM_SERVERS: StreamServer[] = [
   {
     id: 'vidfast',
     name: 'Server 1 (VidFast Multi-Audio)',
-    badge: 'Multi-Audio HLS',
+    badge: 'Multi-Audio ★ Fast Sync',
     category: 'multi',
+    syncRating: 'perfect',
     audioSupport: 'Hindi, English, Tamil, Telugu, Spanish, French in player settings',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://vidfast.vc/tv/${id}/${s}/${e}?autoPlay=true` : `https://vidfast.vc/movie/${id}?autoPlay=true`,
-  },
-  {
-    id: 'nxsha',
-    name: 'Server 2 (Nxsha Hindi Dub)',
-    badge: 'हिन्दी Dubbed',
-    category: 'hindi',
-    audioSupport: 'Dedicated Hindi Dubbed audio stream',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://nxsha.space/embed/tv/${id}/${s}/${e}` : `https://nxsha.space/embed/movie/${id}`,
-  },
-  {
-    id: 'bingr',
-    name: 'Server 3 (Bingr Hindi & Dual)',
-    badge: 'हिन्दी / Fast',
-    category: 'hindi',
-    audioSupport: 'Hindi & Dual Audio library',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://bingr.one/watch/tv/${id}/${s}/${e}` : `https://bingr.one/watch/movie/${id}`,
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'multi', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `&startAt=${sec}&start=${sec}&t=${sec}` : '';
+      return isTv
+        ? `https://vidfast.vc/tv/${id}/${s}/${e}?autoPlay=true${timeParam}`
+        : `https://vidfast.vc/movie/${id}?autoPlay=true${timeParam}`;
+    },
   },
   {
     id: 'multiembed',
-    name: 'Server 4 (MultiEmbed Hindi/Dual)',
+    name: 'Server 2 (MultiEmbed Hindi/Dual)',
+    badge: 'हिन्दी Dubbed ★ Top Sync',
+    category: 'hindi',
+    syncRating: 'perfect',
+    audioSupport: 'Specialized Hindi Dubbed and Multi-Audio player with regional audio tracks',
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
+      return isTv
+        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&autoplay=1${timeParam}`
+        : `https://multiembed.mov/?video_id=${id}&tmdb=1&autoplay=1${timeParam}`;
+    },
+  },
+  {
+    id: 'nxsha',
+    name: 'Server 3 (Nxsha Hindi Dub)',
     badge: 'हिन्दी Dubbed',
     category: 'hindi',
-    audioSupport: 'Specialized Hindi Dubbed and Multi-Audio player with regional audio tracks',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv
-        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
-        : `https://multiembed.mov/?video_id=${id}&tmdb=1`,
+    syncRating: 'standard',
+    audioSupport: 'Dedicated Hindi Dubbed audio stream',
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&startAt=${sec}&autoplay=1` : '?autoplay=1';
+      return isTv
+        ? `https://nxsha.space/embed/tv/${id}/${s}/${e}${timeParam}`
+        : `https://nxsha.space/embed/movie/${id}${timeParam}`;
+    },
   },
   {
     id: 'vidlink',
-    name: 'Server 5 (VidLink HD)',
-    badge: '1080p Fast',
+    name: 'Server 4 (VidLink 1080p)',
+    badge: '1080p ★ Fast Sync',
     category: 'english',
+    syncRating: 'high',
     audioSupport: 'Original English audio, crystal clear 1080p stream',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true` : `https://vidlink.pro/movie/${id}?autoplay=true`,
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'english', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
+      return isTv
+        ? `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true${timeParam}`
+        : `https://vidlink.pro/movie/${id}?autoplay=true${timeParam}`;
+    },
   },
   {
-    id: 'vidstuck',
-    name: 'Server 6 (VidStuck Ultra)',
-    badge: 'Multi-CDN',
-    category: 'global',
-    audioSupport: 'High-speed mirror with multi-CDN backup',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://vidstuck.cc/embed/tv/${id}/${s}/${e}` : `https://vidstuck.cc/embed/movie/${id}`,
+    id: 'bingr',
+    name: 'Server 5 (Bingr Hindi & Dual)',
+    badge: 'हिन्दी / Fast',
+    category: 'hindi',
+    syncRating: 'standard',
+    audioSupport: 'Hindi & Dual Audio library',
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoplay=1` : '?autoplay=1';
+      return isTv
+        ? `https://bingr.one/watch/tv/${id}/${s}/${e}${timeParam}`
+        : `https://bingr.one/watch/movie/${id}${timeParam}`;
+    },
   },
   {
     id: 'autoembed',
-    name: 'Server 7 (AutoEmbed CC)',
+    name: 'Server 6 (AutoEmbed CC)',
     badge: 'Global Cloud',
     category: 'global',
+    syncRating: 'high',
     audioSupport: 'Worldwide auto-resolving stream nodes',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` : `https://player.autoembed.cc/embed/movie/${id}`,
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'global', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoplay=1` : '?autoplay=1';
+      return isTv
+        ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}${timeParam}`
+        : `https://player.autoembed.cc/embed/movie/${id}${timeParam}`;
+    },
   },
   {
     id: 'vidsrc_cc',
-    name: 'Server 8 (VidSrc Pro)',
+    name: 'Server 7 (VidSrc Pro)',
     badge: '4K Mirror',
     category: 'english',
+    syncRating: 'high',
     audioSupport: '4K & 1080p ultra-high bitrate mirror',
-    getUrl: (id, isTv, s = 1, e = 1) =>
-      isTv ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}` : `https://vidsrc.cc/v2/embed/movie/${id}`,
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'english', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoPlay=true` : '?autoPlay=true';
+      return isTv
+        ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}${timeParam}`
+        : `https://vidsrc.cc/v2/embed/movie/${id}${timeParam}`;
+    },
+  },
+  {
+    id: 'vidstuck',
+    name: 'Server 8 (VidStuck Ultra)',
+    badge: 'Multi-CDN',
+    category: 'global',
+    syncRating: 'standard',
+    audioSupport: 'High-speed mirror with multi-CDN backup',
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'global', startSeconds = 0) => {
+      const sec = Math.floor(Math.max(0, startSeconds));
+      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoplay=1` : '?autoplay=1';
+      return isTv
+        ? `https://vidstuck.cc/embed/tv/${id}/${s}/${e}${timeParam}`
+        : `https://vidstuck.cc/embed/movie/${id}${timeParam}`;
+    },
   },
 ];
 
 /**
- * Get streaming embed player URL based on TMDB ID, selected server, and audio language
+ * Get streaming embed player URL based on TMDB ID, selected server, audio language, and start timestamp
  */
 export function getEmbedStreamUrl(
   tmdbId: number,
@@ -532,10 +586,11 @@ export function getEmbedStreamUrl(
   season = 1,
   episode = 1,
   serverId = 'vidfast',
-  audioLang = 'multi'
+  audioLang = 'multi',
+  startSeconds = 0
 ): string {
   const server = STREAM_SERVERS.find((s) => s.id === serverId) || STREAM_SERVERS[0];
-  return server.getUrl(tmdbId, type === 'tv', season, episode, audioLang);
+  return server.getUrl(tmdbId, type === 'tv', season, episode, audioLang, startSeconds);
 }
 
 // --------------------------------------------------------------------------

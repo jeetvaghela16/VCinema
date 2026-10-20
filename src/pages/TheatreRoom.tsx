@@ -63,6 +63,17 @@ export default function TheatreRoom() {
   const [copiedToast, setCopiedToast] = useState(false);
   const [localTime, setLocalTime] = useState(0);
 
+  // Playback Join & Iframe Stream Synchronization State
+  const [hasJoinedPlayback, setHasJoinedPlayback] = useState(isHost);
+  const [iframeSyncNonce, setIframeSyncNonce] = useState(0);
+  const [activeSyncTimestamp, setActiveSyncTimestamp] = useState<number | null>(null);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
+  const prevVersionRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isHost) setHasJoinedPlayback(true);
+  }, [isHost]);
+
   // Film selector modal state
   const [filmModalTab, setFilmModalTab] = useState<'search' | 'curated' | 'custom' | 'originals'>('search');
   const [filmSearchQuery, setFilmSearchQuery] = useState('');
@@ -363,6 +374,47 @@ export default function TheatreRoom() {
     await sendMessage(`Host skipped forward +10s (${formatTimecode(newTime)})`);
   };
 
+  // Synchronize iframe on authoritative host seek/skip/resume events
+  useEffect(() => {
+    if (!room?.playback) return;
+
+    if (prevVersionRef.current === null) {
+      prevVersionRef.current = room.playback.version || 0;
+      return;
+    }
+
+    if (room.playback.version !== prevVersionRef.current) {
+      prevVersionRef.current = room.playback.version;
+      const targetTime = Math.floor(calculateAuthoritativePosition(room.playback));
+      setActiveSyncTimestamp(targetTime);
+      setIframeSyncNonce((prev) => prev + 1);
+
+      if (!isHost) {
+        setSyncToast(`Host seeked · Snapped to ${formatTimecode(targetTime)}`);
+        setTimeout(() => setSyncToast(null), 3500);
+      }
+    }
+  }, [room?.playback?.version, room?.playback?.isPlaying, isHost]);
+
+  // Handle Non-host Join Live Screening (Unlocks autoplay audio and syncs to host)
+  const handleJoinPlayback = () => {
+    const hostTime = room?.playback ? Math.floor(calculateAuthoritativePosition(room.playback)) : Math.floor(localTime);
+    setActiveSyncTimestamp(hostTime);
+    setHasJoinedPlayback(true);
+    setIframeSyncNonce((prev) => prev + 1);
+    setSyncToast(`✓ Joined screening at ${formatTimecode(hostTime)}`);
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  // Handle Manual Resync with Host
+  const handleManualResync = () => {
+    const hostTime = room?.playback ? Math.floor(calculateAuthoritativePosition(room.playback)) : Math.floor(localTime);
+    setActiveSyncTimestamp(hostTime);
+    setIframeSyncNonce((prev) => prev + 1);
+    setSyncToast(`⚡ Snapped to Host at ${formatTimecode(hostTime)}`);
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
   // PostMessage pause to iframes when paused
   useEffect(() => {
     if (!room?.playback) return;
@@ -441,6 +493,11 @@ export default function TheatreRoom() {
   const duration = room.playback.duration || 8280;
   const progressPercent = Math.min(100, Math.max(0, (localTime / duration) * 100));
 
+  const effectiveStartSeconds =
+    activeSyncTimestamp !== null
+      ? activeSyncTimestamp
+      : Math.floor(calculateAuthoritativePosition(room.playback));
+
   const embedStreamUrl = activeTmdbId
     ? getEmbedStreamUrl(
         activeTmdbId,
@@ -448,7 +505,8 @@ export default function TheatreRoom() {
         currentSeason,
         currentEpisode,
         theatreServer,
-        theatreAudioLang
+        theatreAudioLang,
+        effectiveStartSeconds
       )
     : currentMovie.videoUrl || '';
 
@@ -459,6 +517,14 @@ export default function TheatreRoom() {
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-vc-gold text-black text-xs font-mono font-semibold px-4 py-2 rounded-[4px] shadow-[0_4px_20px_rgba(198,167,106,0.5)] animate-slide-down flex items-center gap-2">
           <span>✓</span>
           <span>Invite Link Copied to Clipboard ({room.code})</span>
+        </div>
+      )}
+
+      {/* ── LIVE SYNC TOAST ── */}
+      {syncToast && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-black/90 border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold px-4 py-2 rounded-[4px] shadow-[0_4px_25px_rgba(0,0,0,0.8),0_0_20px_rgba(198,167,106,0.3)] backdrop-blur-md animate-slide-down flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>{syncToast}</span>
         </div>
       )}
 
@@ -561,6 +627,42 @@ export default function TheatreRoom() {
               className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)]"
               aria-label="Cinema screen"
             >
+              {/* ── AUTOPLAY GATE: JOIN SYNCHRONIZED STREAM ── */}
+              {!hasJoinedPlayback && !isHost && room.playback.isPlaying && (
+                <div className="absolute inset-0 z-25 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none animate-fade-in">
+                  <div
+                    className="relative mb-4 group cursor-pointer"
+                    onClick={handleJoinPlayback}
+                  >
+                    <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-vc-gold/20 border-2 border-vc-gold flex items-center justify-center text-vc-gold text-2xl sm:text-3xl font-mono shadow-[0_0_40px_rgba(198,167,106,0.5)] group-hover:scale-105 group-hover:bg-vc-gold/30 transition-all">
+                      ▶
+                    </div>
+                    <div className="absolute -inset-2 rounded-full border border-vc-gold/30 animate-ping pointer-events-none" />
+                  </div>
+
+                  <span className="text-[10px] font-mono tracking-[0.25em] text-vc-gold uppercase mb-1.5">
+                    Live Virtual Screening in Progress
+                  </span>
+                  <h3 className="font-serif text-lg sm:text-2xl font-bold text-white mb-2">
+                    {currentMovie.title}
+                  </h3>
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-[3px] bg-white/10 text-white/90 text-xs font-mono mb-4 border border-white/15">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Host is currently at {formatTimecode(localTime)}</span>
+                  </div>
+
+                  <button
+                    onClick={handleJoinPlayback}
+                    className="px-6 py-2.5 rounded-[4px] bg-vc-gold text-black text-xs font-mono font-bold uppercase tracking-wider hover:bg-vc-gold-bright transition-all shadow-[0_0_25px_rgba(198,167,106,0.5)] active:scale-95 flex items-center gap-2"
+                  >
+                    <span>▶ Join Synchronized Stream with Sound</span>
+                  </button>
+                  <p className="text-[10px] sm:text-[11px] text-vc-text-muted mt-2.5 max-w-sm">
+                    Click to unlock browser audio and start playback at the host's exact position.
+                  </p>
+                </div>
+              )}
+
               {/* ── AUTHORITATIVE CINEMA PROJECTION PAUSE CURTAIN ── */}
               {!room.playback.isPlaying && (
                 <div className="absolute inset-0 z-30 bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none">
@@ -636,11 +738,11 @@ export default function TheatreRoom() {
               ) : projectionMode === 'stream' && embedStreamUrl ? (
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
                   <iframe
-                    key={`${embedStreamUrl}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}`}
+                    key={`${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}-${iframeSyncNonce}`}
                     src={embedStreamUrl}
                     className="w-full h-full border-0"
                     allowFullScreen
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allow="accelerometer; autoplay *; clipboard-write; encrypted-media *; gyroscope; picture-in-picture *; web-share"
                     title={currentMovie.title}
                   />
                 </div>
@@ -742,6 +844,19 @@ export default function TheatreRoom() {
                   </p>
                 </div>
               </div>
+
+              {/* ── INSTANT RESYNC BUTTON (Non-host viewers) ── */}
+              {!isHost && room.playback.isPlaying && hasJoinedPlayback && (
+                <button
+                  type="button"
+                  onClick={handleManualResync}
+                  className="absolute bottom-5 right-5 z-20 pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-[4px] bg-black/85 hover:bg-black/95 border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold tracking-wide shadow-[0_4px_25px_rgba(0,0,0,0.8),0_0_15px_rgba(198,167,106,0.3)] backdrop-blur-md hover:border-vc-gold transition-all active:scale-95 group"
+                  title="Click to snap playback to the host's exact live timecode"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="group-hover:text-vc-gold-bright">⚡ Sync with Host ({formatTimecode(localTime)})</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1028,6 +1143,25 @@ export default function TheatreRoom() {
                   >
                     🖼 Art
                   </button>
+                </div>
+
+                {/* Watch Party Sync Guidance */}
+                <div className="w-full flex items-center justify-between text-[10px] font-mono text-white/50 pt-1.5 flex-wrap gap-2 border-t border-white/5 mt-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-vc-gold font-bold">💡 Watch Party Sync:</span>
+                    <span>
+                      Server 1 (VidFast Multi-Audio) &amp; Server 2 (MultiEmbed) support direct synchronized seek with friends.
+                    </span>
+                  </div>
+                  {isHost && theatreServer !== 'vidfast' && theatreServer !== 'multiembed' && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectServer('vidfast')}
+                      className="text-vc-gold underline hover:text-vc-gold-bright transition-colors cursor-pointer"
+                    >
+                      Switch to Server 1 for Best Party Sync
+                    </button>
+                  )}
                 </div>
               </div>
 
