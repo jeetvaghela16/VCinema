@@ -724,6 +724,17 @@ export default function TheatreRoom() {
           </span>
         </div>
 
+        {/* Current Presentation Title in Header */}
+        <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-white/5 rounded-[4px] border border-white/10 max-w-sm truncate">
+          <span className="text-[10px] font-mono text-vc-gold tracking-widest uppercase">
+            {isTv ? `S${currentSeason}:E${currentEpisode}` : currentMovie.genre}
+          </span>
+          <span className="text-white/30">·</span>
+          <span className="text-xs font-serif font-bold text-white truncate">
+            {currentMovie.title}
+          </span>
+        </div>
+
         {/* Room code & Online Count */}
         <div className="flex items-center gap-4">
           <button
@@ -806,7 +817,7 @@ export default function TheatreRoom() {
                 width: 'min(100%, calc((100vh - 300px) * 16 / 9))',
                 maxWidth: '64rem',
               }}
-              className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)]"
+              className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)] group"
               aria-label="Cinema screen"
             >
               {/* ── AUTOPLAY GATE: JOIN SYNCHRONIZED STREAM ── */}
@@ -977,25 +988,32 @@ export default function TheatreRoom() {
                 </div>
               )}
 
-              {/* Cinematic Vignette Overlay */}
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: 'radial-gradient(ellipse 90% 80% at 50% 50%, transparent 40%, rgba(5,5,4,0.85) 100%)',
-                }}
-              />
+              {/* Cinematic Vignette Overlay (Artwork mode only) */}
+              {projectionMode === 'artwork' && (
+                <>
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'radial-gradient(ellipse 90% 80% at 50% 50%, transparent 40%, rgba(5,5,4,0.85) 100%)',
+                    }}
+                  />
+                  <div
+                    className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(255,255,255,0.4) 2px, rgba(255,255,255,0.4) 3px)',
+                    }}
+                  />
+                </>
+              )}
 
-              {/* Scanline Subtle Effect */}
+              {/* Status Indicator (Top Left - subtle hover during playback, always visible when paused) */}
               <div
-                className="absolute inset-0 pointer-events-none opacity-[0.03]"
-                style={{
-                  backgroundImage:
-                    'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(255,255,255,0.4) 2px, rgba(255,255,255,0.4) 3px)',
-                }}
-              />
-
-              {/* Status Indicator (Top Left) */}
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10 z-10">
+                className={cn(
+                  'absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10 z-10 transition-opacity duration-300 pointer-events-none',
+                  room.playback.isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
+                )}
+              >
                 <div
                   className={cn(
                     'w-2 h-2 rounded-full',
@@ -1008,8 +1026,13 @@ export default function TheatreRoom() {
                 </span>
               </div>
 
-              {/* Host vs Viewer Badge / Disconnected Notice (Top Right) */}
-              <div className="absolute top-4 right-4 z-10">
+              {/* Host vs Viewer Badge (Top Right - subtle hover during playback, always visible when paused) */}
+              <div
+                className={cn(
+                  'absolute top-4 right-4 z-10 transition-opacity duration-300 pointer-events-none',
+                  room.playback.isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
+                )}
+              >
                 {isHost ? (
                   <div className="flex items-center gap-1.5 bg-vc-gold/15 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-vc-gold/40">
                     <span className="text-xs">👑</span>
@@ -1034,18 +1057,6 @@ export default function TheatreRoom() {
                     </span>
                   </div>
                 )}
-              </div>
-
-              {/* Bottom Film Details Overlay */}
-              <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between z-10 pointer-events-none">
-                <div className="bg-black/60 backdrop-blur-md p-3 rounded-[3px] border border-white/10">
-                  <p className="text-[10px] font-mono text-vc-gold tracking-widest uppercase mb-0.5">
-                    {currentMovie.genre} &middot; {currentMovie.year} &middot; {currentMovie.duration}
-                  </p>
-                  <p className="font-serif text-lg md:text-xl font-bold text-vc-text-primary leading-tight">
-                    {currentMovie.title}
-                  </p>
-                </div>
               </div>
 
               {/* ── INSTANT RESYNC & RELOAD BUTTONS (Non-host viewers) ── */}
