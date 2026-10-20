@@ -15,40 +15,45 @@ function parseAuditoriumInput(input: string): { code?: string; roomId?: string }
   const trimmed = input.trim();
   if (!trimmed) return {};
 
+  const lower = trimmed.toLowerCase();
+
   // Check if it looks like a URL or path
   if (
-    trimmed.includes('http://') ||
-    trimmed.includes('https://') ||
-    trimmed.includes('/theatre/') ||
-    trimmed.includes('/join-theatre') ||
-    trimmed.includes('localhost') ||
-    trimmed.includes('.app')
+    lower.includes('http://') ||
+    lower.includes('https://') ||
+    lower.includes('/theatre/') ||
+    lower.includes('/join-theatre') ||
+    lower.includes('code=') ||
+    lower.includes('localhost') ||
+    lower.includes('.app')
   ) {
+    // Check ?code= query param
+    const codeMatch = trimmed.match(/[?&]code=([a-zA-Z0-9_-]+)/i);
+    if (codeMatch && codeMatch[1]) {
+      return { code: codeMatch[1].trim().toUpperCase() };
+    }
+
+    // Check /theatre/:id
+    const theatreMatch = trimmed.match(/\/theatre\/([a-zA-Z0-9_-]+)/i);
+    if (theatreMatch && theatreMatch[1]) {
+      return { roomId: theatreMatch[1].trim(), code: theatreMatch[1].trim().toUpperCase() };
+    }
+
     try {
-      const urlString = trimmed.startsWith('http') ? trimmed : `http://${trimmed}`;
+      const urlString = lower.startsWith('http') ? trimmed : `http://${trimmed}`;
       const url = new URL(urlString);
 
-      // Check ?code= query param
       const paramCode = url.searchParams.get('code');
       if (paramCode) {
         return { code: paramCode.trim().toUpperCase() };
       }
 
-      // Check /theatre/:id
-      const theatreMatch = url.pathname.match(/\/theatre\/([a-zA-Z0-9_-]+)/);
-      if (theatreMatch && theatreMatch[1]) {
-        return { roomId: theatreMatch[1], code: theatreMatch[1].toUpperCase() };
+      const match = url.pathname.match(/\/theatre\/([a-zA-Z0-9_-]+)/i);
+      if (match && match[1]) {
+        return { roomId: match[1], code: match[1].toUpperCase() };
       }
     } catch {
-      // Regex fallback for malformed URLs
-      const theatreMatch = trimmed.match(/theatre\/([a-zA-Z0-9_-]+)/);
-      if (theatreMatch && theatreMatch[1]) {
-        return { roomId: theatreMatch[1], code: theatreMatch[1].toUpperCase() };
-      }
-      const codeMatch = trimmed.match(/code=([a-zA-Z0-9_-]+)/);
-      if (codeMatch && codeMatch[1]) {
-        return { code: codeMatch[1].toUpperCase() };
-      }
+      // Fallback
     }
   }
 
@@ -65,8 +70,8 @@ export default function JoinTheatre() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [code, setCode] = useState('');
-  const [linkInput, setLinkInput] = useState('');
+  // Unified admission input: accepts room codes, invite links, or direct theatre URLs
+  const [admissionInput, setAdmissionInput] = useState('');
   const [password, setPassword] = useState('');
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
@@ -74,73 +79,25 @@ export default function JoinTheatre() {
   const [isSearching, setIsSearching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Pre-populate code if provided in query params (e.g. from invite link)
+  // Pre-populate if provided in query params (e.g. from invite link ?code=VCX-XXXXXX)
   useEffect(() => {
     const urlCode = searchParams.get('code');
     if (urlCode) {
-      setCode(urlCode.toUpperCase().trim());
+      setAdmissionInput(urlCode.toUpperCase().trim());
     }
   }, [searchParams]);
-
-  const handleCodeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    setErrorMessage(null);
-
-    // If the user pastes a URL into the room code field
-    if (
-      raw.includes('http') ||
-      raw.includes('/theatre/') ||
-      raw.includes('localhost') ||
-      raw.includes('join-theatre')
-    ) {
-      const parsed = parseAuditoriumInput(raw);
-      if (parsed.code && !parsed.roomId) {
-        setCode(parsed.code);
-      } else if (parsed.roomId) {
-        setCode(parsed.roomId);
-      } else {
-        setCode(raw.trim());
-      }
-      return;
-    }
-
-    // Normal typing: keep alphanumeric and dash
-    const val = raw.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);
-    setCode(val);
-  };
-
-  const handleCodePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pastedText = e.clipboardData.getData('text');
-    if (
-      pastedText.includes('http') ||
-      pastedText.includes('/theatre/') ||
-      pastedText.includes('code=') ||
-      pastedText.includes('localhost')
-    ) {
-      e.preventDefault();
-      const parsed = parseAuditoriumInput(pastedText);
-      if (parsed.code && !parsed.roomId) {
-        setCode(parsed.code);
-      } else if (parsed.roomId) {
-        setCode(parsed.roomId);
-      } else {
-        setCode(pastedText.trim());
-      }
-      setErrorMessage(null);
-    }
-  };
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    const inputToUse = code.trim() || linkInput.trim();
-    if (!inputToUse) {
-      setErrorMessage('Please enter an auditorium room code or paste an invitation link.');
+    const raw = admissionInput.trim();
+    if (!raw) {
+      setErrorMessage('Please enter an auditorium room code or paste your invitation link.');
       return;
     }
 
-    const parsed = parseAuditoriumInput(inputToUse);
+    const parsed = parseAuditoriumInput(raw);
     setIsSearching(true);
 
     try {
@@ -151,19 +108,19 @@ export default function JoinTheatre() {
         room = await getTheatreByCode(parsed.code);
       }
 
-      // 2. If not found by code, try by direct room ID
+      // 2. If not found by code, try by direct room ID (e.g. from /theatre/:id)
       if (!room && parsed.roomId) {
         room = await getTheatreById(parsed.roomId);
       }
 
-      // 3. If still not found, try looking up raw code as direct room ID
-      if (!room && parsed.code) {
-        room = await getTheatreById(parsed.code);
+      // 3. Fallback: try raw input directly as Firestore room ID
+      if (!room && raw.length > 10) {
+        room = await getTheatreById(raw);
       }
 
       if (!room) {
         setErrorMessage(
-          `No active auditorium found for "${inputToUse}". Please check the room code or ask the host for a link.`
+          `No active auditorium found for "${raw}". Please verify the code or ask the host for a valid screening link.`
         );
         return;
       }
@@ -176,10 +133,10 @@ export default function JoinTheatre() {
         return;
       }
 
-      // Navigate to live theatre
+      // Navigate to live theatre screening room
       navigate(`/theatre/${room.id}`);
     } catch {
-      setErrorMessage('Network error while locating auditorium. Please try again.');
+      setErrorMessage('Network error while locating auditorium. Please check your connection and try again.');
     } finally {
       setIsSearching(false);
     }
@@ -207,7 +164,7 @@ export default function JoinTheatre() {
           Join a Theatre
         </h2>
         <p className="text-vc-text-muted text-sm mb-10">
-          Enter an auditorium room code or paste an invitation link to enter the synchronized screening.
+          Enter an auditorium room code, paste an invite link, or enter a direct screening URL.
         </p>
 
         {/* Error Alert */}
@@ -265,56 +222,43 @@ export default function JoinTheatre() {
           ) : (
             /* Standard Admission Form */
             <form onSubmit={handleJoin}>
-              {/* Room code or link input */}
+              {/* Unified admission input */}
               <div className="mb-6">
-                <label htmlFor="room-code" className="block text-xs font-semibold text-vc-text-muted uppercase tracking-widest mb-3">
-                  Room Code or Invite Link
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="admission-input" className="block text-xs font-semibold text-vc-text-muted uppercase tracking-widest">
+                    Room Code or Invitation Link
+                  </label>
+                  <span className="text-[10px] font-mono text-vc-gold/70">
+                    Auto-Detects Links & Codes
+                  </span>
+                </div>
                 <input
-                  id="room-code"
+                  id="admission-input"
                   type="text"
-                  value={code}
-                  onChange={handleCodeInput}
-                  onPaste={handleCodePaste}
-                  placeholder="VCX-XXXXXX or paste URL"
-                  className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-5 py-4 text-base sm:text-lg font-mono text-center text-vc-text-primary placeholder-vc-text-muted/30 tracking-[0.1em] focus:border-vc-gold/50 focus:outline-none transition-colors"
-                  autoComplete="off"
-                  aria-describedby="code-hint"
-                />
-                <p id="code-hint" className="text-[11px] text-vc-text-muted mt-2 text-center font-mono">
-                  Accepts room code (e.g. VCX-7K9M2Q), invite link, or screening URL
-                </p>
-              </div>
-
-              {/* OR divider */}
-              <div className="flex items-center gap-4 my-6">
-                <div className="flex-1 h-[1px] bg-vc-border" />
-                <span className="text-xs text-vc-text-muted">or paste direct link</span>
-                <div className="flex-1 h-[1px] bg-vc-border" />
-              </div>
-
-              {/* Invite link input */}
-              <div className="mb-8">
-                <label htmlFor="invite-link" className="block text-xs font-semibold text-vc-text-muted uppercase tracking-widest mb-3">
-                  Direct Screening Link
-                </label>
-                <input
-                  id="invite-link"
-                  type="text"
-                  value={linkInput}
+                  value={admissionInput}
                   onChange={(e) => {
-                    setLinkInput(e.target.value);
+                    setAdmissionInput(e.target.value);
                     setErrorMessage(null);
                   }}
-                  placeholder="http://localhost:5173/theatre/... or ?code=..."
-                  className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder-vc-text-muted focus:border-vc-gold/50 focus:outline-none transition-colors font-mono"
+                  placeholder="VCX-XXXXXX or paste link (http://...)"
+                  className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-5 py-4 text-base sm:text-lg font-mono text-center text-vc-text-primary placeholder-vc-text-muted/40 tracking-[0.05em] focus:border-vc-gold/60 focus:outline-none transition-colors selection:bg-vc-gold selection:text-black"
+                  autoComplete="off"
+                  autoFocus
+                  aria-describedby="code-hint"
                 />
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px] text-vc-text-muted font-mono">
+                  <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">Code: VCX-7K9M2Q</span>
+                  <span className="text-white/20">&bull;</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">Invite Link</span>
+                  <span className="text-white/20">&bull;</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">Direct URL</span>
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={isSearching}
-                className="w-full py-4 bg-vc-gold text-black text-sm font-semibold rounded-[4px] text-center hover:bg-vc-gold/90 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(198,167,106,0.3)] disabled:opacity-50"
+                className="w-full py-4 bg-vc-gold text-black text-sm font-semibold rounded-[4px] text-center hover:bg-vc-gold/90 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(198,167,106,0.3)] disabled:opacity-50 font-mono tracking-wider uppercase"
               >
                 {isSearching ? (
                   <>
@@ -322,7 +266,7 @@ export default function JoinTheatre() {
                     <span>Locating Auditorium...</span>
                   </>
                 ) : (
-                  <span>Admit to Live Screening</span>
+                  <span>Admit to Live Screening &rarr;</span>
                 )}
               </button>
             </form>
