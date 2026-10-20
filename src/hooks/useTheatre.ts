@@ -16,6 +16,8 @@ import type {
   TheatreChatMessage,
 } from '../types/theatre';
 import { movies } from '../data/movies';
+import { CURATED_GLOBAL_MOVIES } from '../services/tmdbService';
+import type { Movie, Series } from '../types';
 
 export function useTheatre(theatreId: string | undefined) {
   const { user } = useAuth();
@@ -155,14 +157,57 @@ export function useTheatre(theatreId: string | undefined) {
 
   // Change Movie
   const changeMovie = useCallback(
-    async (movieId: string) => {
+    async (
+      movieInput: (Movie | Series) | string,
+      customOptions?: {
+        mediaType?: 'artwork' | 'trailer' | 'video' | 'embed';
+        videoUrl?: string;
+        trailerKey?: string;
+        tmdbId?: number;
+        isTv?: boolean;
+        season?: number;
+        episode?: number;
+        streamServerId?: string;
+        audioLanguage?: string;
+      }
+    ) => {
       if (!theatreId || !isHost) return;
-      const movie = movies.find((m) => m.id === movieId);
-      if (!movie) return;
+
+      let movie: Partial<Movie | Series> | undefined;
+      if (typeof movieInput === 'string') {
+        movie =
+          movies.find((m) => m.id === movieInput) ||
+          CURATED_GLOBAL_MOVIES.find((m) => m.id === movieInput) ||
+          { id: movieInput, title: 'Feature Film' };
+      } else {
+        movie = movieInput;
+      }
 
       await updatePlayback(theatreId, {
-        currentMovieId: movie.id,
-        currentMovieTitle: movie.title,
+        currentMovieId: movie.id || 'custom',
+        currentMovieTitle: movie.title || 'Feature Film',
+        currentMoviePoster: movie.posterUrl,
+        currentMovieBackdrop: movie.backdropUrl,
+        currentMovieTrailerKey: customOptions?.trailerKey || movie.trailerKey,
+        currentMovieVideoUrl: customOptions?.videoUrl || movie.videoUrl,
+        mediaType:
+          customOptions?.mediaType ||
+          (customOptions?.videoUrl
+            ? 'video'
+            : movie.trailerKey
+            ? 'trailer'
+            : movie.tmdbId
+            ? 'embed'
+            : 'artwork'),
+        tmdbId: customOptions?.tmdbId || movie.tmdbId,
+        isTv:
+          customOptions?.isTv !== undefined
+            ? customOptions.isTv
+            : movie && 'seasons' in movie,
+        season: customOptions?.season || 1,
+        episode: customOptions?.episode || 1,
+        streamServerId: customOptions?.streamServerId,
+        audioLanguage: customOptions?.audioLanguage,
         currentTime: 0,
         isPlaying: false,
       });
@@ -179,6 +224,41 @@ export function useTheatre(theatreId: string | undefined) {
     [theatreId, user]
   );
 
+  // Change TV Series Season & Episode (Host Only)
+  const changeEpisode = useCallback(
+    async (season: number, episode: number) => {
+      if (!theatreId || !isHost) return;
+      await updatePlayback(theatreId, {
+        season,
+        episode,
+        currentTime: 0,
+      });
+    },
+    [theatreId, isHost]
+  );
+
+  // Change Stream Server (Host Only)
+  const changeServer = useCallback(
+    async (streamServerId: string) => {
+      if (!theatreId || !isHost) return;
+      await updatePlayback(theatreId, {
+        streamServerId,
+      });
+    },
+    [theatreId, isHost]
+  );
+
+  // Change Audio Language (Host Only)
+  const changeAudioLanguage = useCallback(
+    async (audioLanguage: string) => {
+      if (!theatreId || !isHost) return;
+      await updatePlayback(theatreId, {
+        audioLanguage,
+      });
+    },
+    [theatreId, isHost]
+  );
+
   return {
     room,
     participants,
@@ -191,6 +271,9 @@ export function useTheatre(theatreId: string | undefined) {
     pause,
     seek,
     changeMovie,
+    changeEpisode,
+    changeServer,
+    changeAudioLanguage,
     sendMessage,
   };
 }

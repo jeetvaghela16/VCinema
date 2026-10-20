@@ -1,14 +1,26 @@
 import { cn } from '../../utils/cn';
 import type { Movie } from '../../types';
 import { PosterArtwork } from './PosterArtwork';
+import { useWatchModal } from '../../context/WatchModalContext';
 
 interface MovieCardProps {
   movie: Movie;
   className?: string;
   priority?: boolean;
+  onClick?: () => void;
 }
 
-export default function MovieCard({ movie, className }: MovieCardProps) {
+export default function MovieCard({ movie, className, onClick }: MovieCardProps) {
+  const { openWatchModal } = useWatchModal();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      openWatchModal(movie);
+    }
+  };
+
   return (
     <article
       className={cn(
@@ -25,17 +37,27 @@ export default function MovieCard({ movie, className }: MovieCardProps) {
       aria-label={`${movie.title}, released in ${movie.year}, genre: ${movie.genre}, rated ${movie.rating}`}
       tabIndex={0}
       role="button"
+      onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          e.currentTarget.click();
+          handleClick();
         }
       }}
     >
       {/* Poster Artwork Container with Parallax Zoom on Hover */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-105 motion-reduce:transform-none">
-          <PosterArtwork id={movie.id} title={movie.title} genre={movie.genre} />
+          {movie.posterUrl ? (
+            <img
+              src={movie.posterUrl}
+              alt={movie.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <PosterArtwork id={movie.id} title={movie.title} genre={movie.genre} />
+          )}
         </div>
 
         {/* Cinematic Film Grain & Vignette Overlay */}

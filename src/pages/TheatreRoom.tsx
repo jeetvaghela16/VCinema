@@ -3,6 +3,21 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheatre } from '../hooks/useTheatre';
 import { movies } from '../data/movies';
+import {
+  CURATED_GLOBAL_MOVIES,
+  AUDIO_LANGUAGES,
+  STREAM_SERVERS,
+  getEmbedStreamUrl,
+  searchMovies,
+  searchSeries,
+  fetchMovieTrailerKey,
+  fetchSeriesTrailerKey,
+  fetchSeriesDetails,
+  fetchSeasonEpisodes,
+  type TmdbSeriesDetails,
+  type TmdbEpisode,
+} from '../services/tmdbService';
+import type { Movie, Series } from '../types';
 import { PosterArtwork } from '../components/cards/PosterArtwork';
 import { formatTimecode, calculateAuthoritativePosition } from '../services/theatreService';
 import { cn } from '../utils/cn';
@@ -23,6 +38,9 @@ export default function TheatreRoom() {
     pause,
     seek,
     changeMovie,
+    changeEpisode,
+    changeServer,
+    changeAudioLanguage,
     sendMessage,
   } = useTheatre(roomId);
 
@@ -33,8 +51,138 @@ export default function TheatreRoom() {
   const [copiedToast, setCopiedToast] = useState(false);
   const [localTime, setLocalTime] = useState(0);
 
+  // Film selector modal state
+  const [filmModalTab, setFilmModalTab] = useState<'search' | 'curated' | 'custom' | 'originals'>('search');
+  const [filmSearchQuery, setFilmSearchQuery] = useState('');
+  const [filmSearchResults, setFilmSearchResults] = useState<(Movie | Series)[]>([]);
+  const [isSearchingFilms, setIsSearchingFilms] = useState(false);
+  const [customStreamUrl, setCustomStreamUrl] = useState('');
+  const [customStreamTitle, setCustomStreamTitle] = useState('');
+
+  // Audio Dubbing & Projection Mode State
+  const [theatreServer, setTheatreServer] = useState<string>('vidfast');
+  const [theatreAudioLang, setTheatreAudioLang] = useState<string>('hindi');
+  const [projectionMode, setProjectionMode] = useState<'stream' | 'trailer' | 'artwork' | 'video'>('stream');
+
+  // OTT Episode Guide Drawer State
+  const [showEpisodeModal, setShowEpisodeModal] = useState(false);
+  const [theatreSeriesDetails, setTheatreSeriesDetails] = useState<TmdbSeriesDetails | null>(null);
+  const [theatreEpisodes, setTheatreEpisodes] = useState<TmdbEpisode[]>([]);
+  const [drawerSeason, setDrawerSeason] = useState<number>(1);
+  const [isLoadingDrawerEpisodes, setIsLoadingDrawerEpisodes] = useState(false);
+
+  useEffect(() => {
+    if (room?.playback?.streamServerId) setTheatreServer(room.playback.streamServerId);
+    if (room?.playback?.audioLanguage) setTheatreAudioLang(room.playback.audioLanguage);
+    if (room?.playback?.mediaType) {
+      setProjectionMode(
+        room.playback.mediaType === 'trailer'
+          ? 'trailer'
+          : room.playback.mediaType === 'artwork'
+          ? 'artwork'
+          : room.playback.mediaType === 'video'
+          ? 'video'
+          : 'stream'
+      );
+    }
+  }, [room?.playback?.streamServerId, room?.playback?.audioLanguage, room?.playback?.mediaType]);
+
+  // Load TV Series details & episodes when playing a series
+  useEffect(() => {
+    const tmdbId = room?.playback?.tmdbId;
+    const isTv = room?.playback?.isTv;
+    if (!tmdbId || !isTv) {
+      setTheatreSeriesDetails(null);
+      setTheatreEpisodes([]);
+      return;
+    }
+
+    const currentS = room?.playback?.season || 1;
+    setDrawerSeason(currentS);
+
+    fetchSeriesDetails(tmdbId).then((details) => {
+      if (details) {
+        setTheatreSeriesDetails(details);
+      }
+    });
+
+    setIsLoadingDrawerEpisodes(true);
+    fetchSeasonEpisodes(tmdbId, currentS)
+      .then((eps) => {
+        setTheatreEpisodes(eps);
+      })
+      .finally(() => setIsLoadingDrawerEpisodes(false));
+  }, [room?.playback?.tmdbId, room?.playback?.isTv, room?.playback?.season]);
+
+  const handleDrawerSeasonChange = (seasonNum: number) => {
+    setDrawerSeason(seasonNum);
+    const tmdbId = room?.playback?.tmdbId;
+    if (!tmdbId) return;
+
+    setIsLoadingDrawerEpisodes(true);
+    fetchSeasonEpisodes(tmdbId, seasonNum)
+      .then((eps) => setTheatreEpisodes(eps))
+      .finally(() => setIsLoadingDrawerEpisodes(false));
+  };
+
+  const handleHostPrevEpisode = async () => {
+    if (!isHost || !room?.playback) return;
+    const curS = room.playback.season || 1;
+    const curE = room.playback.episode || 1;
+    if (curE > 1) {
+      await changeEpisode(curS, curE - 1);
+      await sendMessage(`Host switched projection to Season ${curS}, Episode ${curE - 1}`);
+    } else if (curS > 1) {
+      await changeEpisode(curS - 1, 1);
+      await sendMessage(`Host switched projection to Season ${curS - 1}, Episode 1`);
+    }
+  };
+
+  const handleHostNextEpisode = async () => {
+    if (!isHost || !room?.playback) return;
+    const curS = room.playback.season || 1;
+    const curE = room.playback.episode || 1;
+    const totalCurrentSeasonEps = theatreEpisodes.length > 0 ? theatreEpisodes.length : 12;
+    if (curE < totalCurrentSeasonEps) {
+      await changeEpisode(curS, curE + 1);
+      await sendMessage(`Host switched projection to Season ${curS}, Episode ${curE + 1}`);
+    } else if (theatreSeriesDetails && curS < theatreSeriesDetails.number_of_seasons) {
+      await changeEpisode(curS + 1, 1);
+      await sendMessage(`Host advanced projection to Season ${curS + 1}, Episode 1`);
+    }
+  };
+
+  const handleSelectEpisode = async (seasonNum: number, episodeNum: number, epName?: string) => {
+    if (!isHost) return;
+    await changeEpisode(seasonNum, episodeNum);
+    setShowEpisodeModal(false);
+    await sendMessage(`Host selected S${seasonNum}:E${episodeNum}${epName ? ` "${epName}"` : ''}`);
+  };
+
+  const handleSelectServer = async (serverId: string) => {
+    setTheatreServer(serverId);
+    if (isHost) {
+      await changeServer(serverId);
+    }
+  };
+
+  const handleSelectDub = async (langId: string) => {
+    setTheatreAudioLang(langId);
+    const langConfig = AUDIO_LANGUAGES.find((l) => l.id === langId);
+    if (langConfig) {
+      setTheatreServer(langConfig.recommendedServerId);
+      if (isHost) {
+        await changeServer(langConfig.recommendedServerId);
+      }
+    }
+    if (isHost) {
+      await changeAudioLanguage(langId);
+    }
+  };
+
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
+  const videoElementRef = useRef<HTMLVideoElement>(null);
   const localTimeRef = useRef(0);
   localTimeRef.current = localTime;
 
@@ -85,6 +233,20 @@ export default function TheatreRoom() {
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  // Synchronize HTML5 video element if active
+  useEffect(() => {
+    if (!videoElementRef.current) return;
+    if (room?.playback?.isPlaying) {
+      videoElementRef.current.play().catch(() => {});
+    } else {
+      videoElementRef.current.pause();
+    }
+    const diff = Math.abs(videoElementRef.current.currentTime - localTime);
+    if (diff > 1.5) {
+      videoElementRef.current.currentTime = localTime;
+    }
+  }, [room?.playback?.isPlaying, localTime]);
 
   // Handle Chat Submit
   const handleChatSubmit = async (e: React.FormEvent) => {
@@ -170,9 +332,45 @@ export default function TheatreRoom() {
     );
   }
 
-  const currentMovie = movies.find((m) => m.id === room.playback.currentMovieId) ?? movies[0];
+  // Construct current movie with full worldwide metadata and fallback
+  const knownMovie =
+    movies.find((m) => m.id === room.playback.currentMovieId) ||
+    CURATED_GLOBAL_MOVIES.find((m) => m.id === room.playback.currentMovieId);
+
+  const activeTmdbId = room.playback.tmdbId || (knownMovie as any)?.tmdbId;
+  const isTv = room.playback.isTv || false;
+  const currentSeason = room.playback.season || 1;
+  const currentEpisode = room.playback.episode || 1;
+
+  const currentMovie: Movie = {
+    id: room.playback.currentMovieId || 'm1',
+    title: room.playback.currentMovieTitle || knownMovie?.title || 'Feature Presentation',
+    year: knownMovie?.year || 2026,
+    genre: knownMovie?.genre || (isTv ? 'Web Series' : 'Cinema'),
+    rating: knownMovie?.rating || '8.8',
+    duration: knownMovie?.duration || (isTv ? `S${currentSeason} : E${currentEpisode}` : '2h 15m'),
+    description: knownMovie?.description || 'Synchronized screening in the VCinema virtual auditorium.',
+    gradientFrom: knownMovie?.gradientFrom || '#1c2b3a',
+    gradientTo: knownMovie?.gradientTo || '#0a1520',
+    posterUrl: room.playback.currentMoviePoster || knownMovie?.posterUrl,
+    backdropUrl: room.playback.currentMovieBackdrop || knownMovie?.backdropUrl,
+    trailerKey: room.playback.currentMovieTrailerKey || knownMovie?.trailerKey,
+    videoUrl: room.playback.currentMovieVideoUrl || knownMovie?.videoUrl,
+    tmdbId: activeTmdbId,
+  };
   const duration = room.playback.duration || 8280;
   const progressPercent = Math.min(100, Math.max(0, (localTime / duration) * 100));
+
+  const embedStreamUrl = activeTmdbId
+    ? getEmbedStreamUrl(
+        activeTmdbId,
+        isTv ? 'tv' : 'movie',
+        currentSeason,
+        currentEpisode,
+        theatreServer,
+        theatreAudioLang
+      )
+    : currentMovie.videoUrl || '';
 
   return (
     <div className="fixed inset-0 bg-[#050504] flex flex-col overflow-hidden select-none" aria-label="VCinema Auditorium">
@@ -256,10 +454,64 @@ export default function TheatreRoom() {
               className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)]"
               aria-label="Cinema screen"
             >
-              {/* Dynamic Film Poster Atmosphere */}
-              <div className="absolute inset-0 opacity-80 pointer-events-none">
-                <PosterArtwork id={currentMovie.id} />
-              </div>
+              {/* Dynamic Film Video / Trailer / Stream / Poster Screen */}
+              {projectionMode === 'trailer' && (currentMovie.trailerKey || room.playback.currentMovieTrailerKey) ? (
+                <div className="absolute inset-0 z-0">
+                  <iframe
+                    key={`${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}-${room.playback.isPlaying}`}
+                    src={`https://www.youtube-nocookie.com/embed/${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}?autoplay=${room.playback.isPlaying ? 1 : 0}&start=${Math.floor(localTime)}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1`}
+                    className="w-full h-full border-0 pointer-events-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    title={currentMovie.title}
+                  />
+                </div>
+              ) : room.playback.mediaType === 'video' && (currentMovie.videoUrl || room.playback.currentMovieVideoUrl) ? (
+                <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
+                  <video
+                    ref={videoElementRef}
+                    src={currentMovie.videoUrl || room.playback.currentMovieVideoUrl}
+                    className="w-full h-full object-contain"
+                    playsInline
+                  />
+                </div>
+              ) : projectionMode === 'stream' && embedStreamUrl ? (
+                <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
+                  <iframe
+                    key={`${embedStreamUrl}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}`}
+                    src={embedStreamUrl}
+                    className="w-full h-full border-0"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    title={currentMovie.title}
+                  />
+                </div>
+              ) : currentMovie.posterUrl ? (
+                <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+                  <img
+                    src={currentMovie.backdropUrl || currentMovie.posterUrl}
+                    alt={currentMovie.title}
+                    className="w-full h-full object-cover opacity-50 scale-105"
+                  />
+                  <div className="absolute inset-0 bg-radial-vignette" />
+                  <div className="relative z-10 flex flex-col items-center text-center p-6 max-w-md">
+                    <img
+                      src={currentMovie.posterUrl}
+                      alt={currentMovie.title}
+                      className="w-24 sm:w-32 h-36 sm:h-48 object-cover rounded-[3px] shadow-[0_10px_40px_rgba(0,0,0,0.8)] border border-vc-gold/40 mb-3"
+                    />
+                    <h3 className="font-serif text-xl sm:text-2xl font-bold text-vc-text-primary mb-1">
+                      {currentMovie.title}
+                    </h3>
+                    <p className="text-[11px] text-vc-gold font-mono tracking-widest uppercase">
+                      {isTv ? `Web Series S${currentSeason}:E${currentEpisode}` : currentMovie.genre} &middot; {currentMovie.year} &middot; {currentMovie.duration}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute inset-0 opacity-80 pointer-events-none">
+                  <PosterArtwork id={currentMovie.id} />
+                </div>
+              )}
 
               {/* Cinematic Vignette Overlay */}
               <div
@@ -334,77 +586,116 @@ export default function TheatreRoom() {
             </div>
           </div>
 
-          {/* ── PLAYBACK CONTROLS STRIP ── */}
+          {/* ── AUDITORIUM PROJECTION CONSOLE & CONTROLS ── */}
           <div className="flex-shrink-0 px-3 md:px-8 pb-3">
-            <div
-              className="max-w-5xl mx-auto glass-panel rounded-[4px] px-4 md:px-6 py-3 border border-white/5"
-            >
-              {/* Progress Slider (Interactive ONLY for Host) */}
-              <div
-                onClick={handleSeekClick}
-                className={cn(
-                  'w-full h-2 rounded-full overflow-hidden bg-white/10 mb-3 relative group transition-all',
-                  isHost ? 'cursor-pointer hover:h-2.5' : 'cursor-default'
-                )}
-                role="progressbar"
-                aria-valuenow={progressPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                title={isHost ? 'Click to seek projection' : `Playback controlled by host (${room.hostName})`}
-              >
-                <div
-                  className="h-full bg-vc-gold rounded-full relative transition-all duration-200"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                {/* Left Controls */}
-                <div className="flex items-center gap-3 sm:gap-4">
-                  {/* Play/Pause Button (Strictly Host Only) */}
+            <div className="max-w-5xl mx-auto glass-panel rounded-[4px] px-4 md:px-6 py-3 border border-white/5 space-y-2.5">
+              {/* Native HTML5 Video Progress Slider (ONLY when playing actual direct HTML5 video) */}
+              {projectionMode === 'video' && (
+                <div className="flex items-center gap-3 pb-2 border-b border-white/5">
                   <button
                     onClick={handleTogglePlayPause}
                     disabled={!isHost}
-                    className={cn(
-                      'w-9 h-9 flex items-center justify-center rounded-full transition-all',
-                      isHost
-                        ? 'text-white hover:bg-white/10 hover:text-vc-gold active:scale-95'
-                        : 'text-white/20 cursor-not-allowed'
-                    )}
-                    aria-label={room.playback.isPlaying ? 'Pause' : 'Play'}
-                    title={!isHost ? `Only host (${room.hostName}) can toggle playback` : undefined}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-vc-gold text-black hover:bg-vc-gold-bright transition-colors text-xs font-bold flex-shrink-0"
+                    title={isHost ? (room.playback.isPlaying ? 'Pause' : 'Play') : 'Playback host controlled'}
                   >
-                    {room.playback.isPlaying ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="6" y="4" width="4" height="16" />
-                        <rect x="14" y="4" width="4" height="16" />
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M5 3l14 9-14 9V3z" />
-                      </svg>
-                    )}
+                    {room.playback.isPlaying ? '❚❚' : '▶'}
                   </button>
+                  <div
+                    onClick={handleSeekClick}
+                    className={cn(
+                      'flex-1 h-2 rounded-full overflow-hidden bg-white/10 relative group transition-all',
+                      isHost ? 'cursor-pointer hover:h-2.5' : 'cursor-default'
+                    )}
+                    role="progressbar"
+                    aria-valuenow={progressPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    title={isHost ? 'Click to seek projection' : `Playback controlled by host (${room.hostName})`}
+                  >
+                    <div
+                      className="h-full bg-vc-gold rounded-full relative transition-all duration-200"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono text-white/50 tracking-wider flex-shrink-0">
+                    {formatTimecode(localTime)} / {formatTimecode(duration)}
+                  </span>
+                </div>
+              )}
 
-                  {/* Volume Slider (Local Control for All) */}
-                  <div className="flex items-center gap-2">
+              {/* ── ROW 1: Broadcast Status, TV Episode Switcher & Top Actions ── */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Left: Broadcast Status */}
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                  <span className="text-[10px] font-mono tracking-widest uppercase text-vc-gold font-bold">
+                    Auditorium Projection
+                  </span>
+                  <span className="text-white/20 hidden sm:inline">&middot;</span>
+                  <span className="text-[11px] font-mono text-white/80 hidden sm:inline">
+                    {STREAM_SERVERS.find((s) => s.id === theatreServer)?.name.replace(/Server \d+ /, '') || 'Fast Mirror'}
+                  </span>
+                  <span className="text-white/20">&middot;</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-vc-gold/15 text-vc-gold border border-vc-gold/30">
+                    {AUDIO_LANGUAGES.find((a) => a.id === theatreAudioLang)?.badge || 'Multi-Audio'}
+                  </span>
+                </div>
+
+                {/* Center: TV Series Episode Switcher (if TV series) */}
+                {isTv && (
+                  <div className="flex items-center gap-2 bg-black/70 px-3 py-1 rounded-[3px] border border-white/10 shadow-inner">
+                    {isHost && (
+                      <button
+                        onClick={handleHostPrevEpisode}
+                        className="px-1.5 py-0.5 text-xs text-white/70 hover:text-vc-gold hover:bg-white/10 rounded transition-colors font-mono"
+                        title="Host: Previous Episode"
+                      >
+                        ⏮
+                      </button>
+                    )}
+                    <span className="text-xs font-mono font-bold text-vc-gold tracking-wide">
+                      S{currentSeason} : E{currentEpisode}
+                    </span>
+                    {isHost && (
+                      <button
+                        onClick={handleHostNextEpisode}
+                        className="px-1.5 py-0.5 text-xs text-white/70 hover:text-vc-gold hover:bg-white/10 rounded transition-colors font-mono"
+                        title="Host: Next Episode"
+                      >
+                        ⏭
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowEpisodeModal(true)}
+                      className="ml-2 text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-vc-gold text-black font-bold hover:bg-vc-gold-bright transition-all shadow-[0_0_10px_rgba(198,167,106,0.3)] active:scale-95"
+                    >
+                      📺 All Episodes
+                    </button>
+                  </div>
+                )}
+
+                {/* Right: Chat Toggle, Volume & Fullscreen */}
+                <div className="flex items-center gap-3">
+                  {/* Volume Slider (Local Audio) */}
+                  <div className="flex items-center gap-1.5">
                     <button
                       className="text-white/60 hover:text-white transition-colors"
                       aria-label="Toggle audio"
                       onClick={() => setVolume((v) => (v > 0 ? 0 : 80))}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         {volume > 0 ? (
                           <>
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
                             <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
                           </>
                         ) : (
                           <>
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
                             <line x1="23" y1="9" x2="17" y2="15" />
-                            <line x1="17" y1="9" x2="23" y2="15" />
                           </>
                         )}
                       </svg>
@@ -415,34 +706,22 @@ export default function TheatreRoom() {
                       max={100}
                       value={volume}
                       onChange={(e) => setVolume(Number(e.target.value))}
-                      className="w-16 sm:w-20 accent-vc-gold hidden sm:block"
+                      className="w-14 sm:w-16 accent-vc-gold hidden md:block"
                       aria-label={`Volume: ${volume}%`}
                     />
                   </div>
 
-                  {/* Synchronized Time Counter */}
-                  <span className="text-[11px] font-mono text-white/50 tracking-wider">
-                    {formatTimecode(localTime)} / {formatTimecode(duration)}
-                  </span>
-                </div>
-
-                {/* Right Controls */}
-                <div className="flex items-center gap-2 sm:gap-3">
                   {/* Chat Toggle */}
                   <button
                     onClick={() => setChatOpen((v) => !v)}
                     className={cn(
-                      'flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-[2px] border transition-all',
+                      'flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-[2px] border transition-all',
                       chatOpen
                         ? 'border-vc-gold/40 text-vc-gold bg-vc-gold/5'
                         : 'border-white/10 text-white/50 hover:border-white/20'
                     )}
-                    aria-label={chatOpen ? 'Hide chat' : 'Show chat'}
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span>Chat ({messages.length})</span>
+                    <span>💬 Chat ({messages.length})</span>
                   </button>
 
                   {/* Fullscreen Button */}
@@ -451,38 +730,125 @@ export default function TheatreRoom() {
                     className="text-white/40 hover:text-white transition-colors p-1"
                     aria-label="Toggle Fullscreen"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
                     </svg>
                   </button>
                 </div>
               </div>
 
-              {/* Host Specific Controls Strip (Visible ONLY to Host) */}
-              {isHost && (
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono text-vc-gold tracking-widest uppercase font-semibold">
-                      Host Controls:
-                    </span>
-                  </div>
+              {/* ── ROW 2: Prominent Fast Servers Switcher ── */}
+              <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                {/* Fast Server Switcher Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+                  <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider font-semibold mr-1 flex items-center gap-1 flex-shrink-0">
+                    <span>⚡ Server:</span>
+                  </span>
+                  {STREAM_SERVERS.map((server) => {
+                    const isSelected = theatreServer === server.id;
+                    return (
+                      <button
+                        key={server.id}
+                        type="button"
+                        onClick={() => handleSelectServer(server.id)}
+                        className={cn(
+                          'px-2.5 py-1 rounded-[3px] text-[10px] font-mono transition-all whitespace-nowrap flex items-center gap-1.5 flex-shrink-0',
+                          isSelected
+                            ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
+                            : 'bg-white/5 text-white/70 hover:text-white border border-white/10 hover:border-white/25'
+                        )}
+                        title={`${server.name} — ${server.audioSupport}`}
+                      >
+                        <span>{server.name.replace(/Server \d+ /, '')}</span>
+                        <span className={cn('text-[9px] px-1 py-0.2 rounded', isSelected ? 'bg-black/20 text-black' : 'bg-white/10 text-white/60')}>
+                          {server.badge}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
+                {/* Projection Mode Switcher */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setProjectionMode('stream')}
+                    className={cn(
+                      'px-2.5 py-1 rounded-[2px] text-[10px] font-mono uppercase tracking-wider transition-all',
+                      projectionMode === 'stream'
+                        ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
+                        : 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                    )}
+                  >
+                    ▶ Stream
+                  </button>
+                  {currentMovie.trailerKey && (
+                    <button
+                      type="button"
+                      onClick={() => setProjectionMode('trailer')}
+                      className={cn(
+                        'px-2.5 py-1 rounded-[2px] text-[10px] font-mono uppercase tracking-wider transition-all',
+                        projectionMode === 'trailer'
+                          ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
+                          : 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                      )}
+                    >
+                      🎬 Trailer
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setProjectionMode('artwork')}
+                    className={cn(
+                      'px-2.5 py-1 rounded-[2px] text-[10px] font-mono uppercase tracking-wider transition-all',
+                      projectionMode === 'artwork'
+                        ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
+                        : 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                    )}
+                  >
+                    🖼 Art
+                  </button>
+                </div>
+              </div>
+
+              {/* ── ROW 3: Audio Dub Switcher & Host Master Controls ── */}
+              <div className="pt-2 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                {/* Audio Dub Selector */}
+                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+                  <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider flex items-center gap-1 font-semibold flex-shrink-0">
+                    <span>🎧 Dub:</span>
+                  </span>
+                  {AUDIO_LANGUAGES.map((lang) => (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      onClick={() => handleSelectDub(lang.id)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-[2px] text-[10px] font-mono transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0',
+                        theatreAudioLang === lang.id
+                          ? 'bg-vc-gold text-black font-bold shadow-[0_0_8px_rgba(198,167,106,0.3)]'
+                          : 'bg-white/5 text-white/70 hover:text-white border border-white/10'
+                      )}
+                      title={lang.description}
+                    >
+                      <span>{lang.glyph}</span>
+                      <span>{lang.label.split('·')[0].trim()}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Host Control Actions */}
+                {isHost && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowFilmModal(true)}
-                      className="text-[10px] font-mono px-2.5 py-1 rounded-[2px] border border-vc-gold/40 text-vc-gold hover:bg-vc-gold/10 transition-all flex items-center gap-1"
+                      className="text-[10px] font-mono px-3 py-1 rounded-[2px] border border-vc-gold/50 text-vc-gold hover:bg-vc-gold/15 transition-all flex items-center gap-1 font-semibold"
                     >
-                      <span>🎬 Change Film</span>
-                    </button>
-                    <button
-                      onClick={() => seek(0)}
-                      className="text-[10px] font-mono px-2.5 py-1 rounded-[2px] border border-white/10 text-vc-text-muted hover:border-vc-gold/40 hover:text-vc-gold transition-all"
-                    >
-                      ⏮ Restart
+                      <span>🎬 Change Film / Series</span>
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
@@ -644,52 +1010,512 @@ export default function TheatreRoom() {
 
       {/* ── CHANGE FILM MODAL (HOST ONLY) ── */}
       {showFilmModal && isHost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="glass-panel w-full max-w-lg rounded-[6px] p-6 border border-vc-gold/30 shadow-[0_20px_60px_rgba(0,0,0,0.9)]">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <h3 className="font-serif text-lg text-vc-text-primary">Change Feature Film</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="glass-panel w-full max-w-2xl rounded-[6px] p-6 border border-vc-gold/30 shadow-[0_25px_70px_rgba(0,0,0,0.95)] max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-lg text-vc-gold">🎬</span>
+                <h3 className="font-serif text-lg text-vc-text-primary">Change Feature Presentation</h3>
+              </div>
               <button
                 onClick={() => setShowFilmModal(false)}
-                className="text-white/40 hover:text-white"
+                className="text-white/40 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {movies.map((m) => {
-                const isCurrent = m.id === currentMovie.id;
-                return (
+            {/* Navigation Tabs */}
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-4 flex-shrink-0 overflow-x-auto">
+              <button
+                onClick={() => setFilmModalTab('search')}
+                className={cn(
+                  'px-3 py-1.5 rounded-[3px] text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap',
+                  filmModalTab === 'search'
+                    ? 'bg-vc-gold text-black font-semibold'
+                    : 'text-vc-text-muted hover:text-white bg-white/5'
+                )}
+              >
+                🔍 Worldwide Search (TMDB)
+              </button>
+              <button
+                onClick={() => setFilmModalTab('curated')}
+                className={cn(
+                  'px-3 py-1.5 rounded-[3px] text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap',
+                  filmModalTab === 'curated'
+                    ? 'bg-vc-gold text-black font-semibold'
+                    : 'text-vc-text-muted hover:text-white bg-white/5'
+                )}
+              >
+                ★ Global Masterpieces
+              </button>
+              <button
+                onClick={() => setFilmModalTab('custom')}
+                className={cn(
+                  'px-3 py-1.5 rounded-[3px] text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap',
+                  filmModalTab === 'custom'
+                    ? 'bg-vc-gold text-black font-semibold'
+                    : 'text-vc-text-muted hover:text-white bg-white/5'
+                )}
+              >
+                🔗 Custom Video / Stream URL
+              </button>
+              <button
+                onClick={() => setFilmModalTab('originals')}
+                className={cn(
+                  'px-3 py-1.5 rounded-[3px] text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap',
+                  filmModalTab === 'originals'
+                    ? 'bg-vc-gold text-black font-semibold'
+                    : 'text-vc-text-muted hover:text-white bg-white/5'
+                )}
+              >
+                VCinema Exclusives
+              </button>
+            </div>
+
+            {/* Tab 1: Worldwide TMDB Search */}
+            {filmModalTab === 'search' && (
+              <div className="flex-1 flex flex-col min-h-0">
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!filmSearchQuery.trim()) return;
+                    setIsSearchingFilms(true);
+                    try {
+                      const [movs, sers] = await Promise.all([
+                        searchMovies(filmSearchQuery),
+                        searchSeries(filmSearchQuery),
+                      ]);
+                      setFilmSearchResults([...movs, ...sers]);
+                    } finally {
+                      setIsSearchingFilms(false);
+                    }
+                  }}
+                  className="flex gap-2 mb-4 flex-shrink-0"
+                >
+                  <input
+                    type="text"
+                    value={filmSearchQuery}
+                    onChange={(e) => setFilmSearchQuery(e.target.value)}
+                    placeholder="Search any movie or web series worldwide (e.g. Stranger Things, Avengers, Inception, Mirzapur)..."
+                    className="flex-1 bg-white/5 border border-white/10 rounded-[3px] px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:border-vc-gold focus:outline-none"
+                  />
                   <button
-                    key={m.id}
-                    onClick={() => {
-                      changeMovie(m.id);
+                    type="submit"
+                    disabled={isSearchingFilms || !filmSearchQuery.trim()}
+                    className="px-4 py-2.5 bg-vc-gold text-black text-xs font-semibold rounded-[3px] hover:bg-vc-gold-bright transition-colors font-mono uppercase tracking-wider disabled:opacity-40"
+                  >
+                    {isSearchingFilms ? 'Searching...' : 'Search'}
+                  </button>
+                </form>
+
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {filmSearchResults.length > 0 ? (
+                    filmSearchResults.map((m) => {
+                      const isTv = 'seasons' in m;
+                      return (
+                        <div
+                          key={m.id}
+                          className="p-2.5 rounded-[4px] bg-white/5 hover:bg-white/10 border border-white/5 hover:border-vc-gold/40 flex items-center justify-between gap-3 transition-all"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {m.posterUrl ? (
+                              <img
+                                src={m.posterUrl}
+                                alt={m.title}
+                                className="w-10 h-14 object-cover rounded-[2px] flex-shrink-0 border border-white/10"
+                              />
+                            ) : (
+                              <div className="w-10 h-14 bg-black/60 rounded-[2px] flex items-center justify-center font-serif text-vc-gold text-xs font-bold flex-shrink-0">
+                                V
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[8px] font-mono uppercase px-1 rounded-[1px] bg-white/10 text-vc-gold">
+                                  {isTv ? 'SERIES' : 'MOVIE'}
+                                </span>
+                                <p className="text-xs font-semibold text-white truncate">{m.title}</p>
+                              </div>
+                              <p className="text-[10px] text-vc-text-muted">
+                                {m.year} &middot; {m.genre} &middot; ★ {m.rating}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={async () => {
+                                let trailer = m.trailerKey;
+                                if (!trailer && m.tmdbId) {
+                                  trailer = isTv
+                                    ? (await fetchSeriesTrailerKey(m.tmdbId)) || undefined
+                                    : (await fetchMovieTrailerKey(m.tmdbId)) || undefined;
+                                }
+                                await changeMovie(m, {
+                                  trailerKey: trailer,
+                                  mediaType: m.tmdbId ? 'embed' : trailer ? 'trailer' : 'artwork',
+                                  tmdbId: m.tmdbId,
+                                  isTv,
+                                  season: 1,
+                                  episode: 1,
+                                  audioLanguage: theatreAudioLang,
+                                  streamServerId: theatreServer,
+                                });
+                                setProjectionMode('stream');
+                                setShowFilmModal(false);
+                              }}
+                              className="px-2.5 py-1.5 bg-vc-gold text-black text-[11px] font-semibold rounded-[2px] hover:bg-vc-gold-bright transition-colors font-mono uppercase"
+                              title="Project full stream with dubbed audio"
+                            >
+                              ▶ Stream
+                            </button>
+                            <button
+                              onClick={async () => {
+                                let trailer = m.trailerKey;
+                                if (!trailer && m.tmdbId) {
+                                  trailer = isTv
+                                    ? (await fetchSeriesTrailerKey(m.tmdbId)) || undefined
+                                    : (await fetchMovieTrailerKey(m.tmdbId)) || undefined;
+                                }
+                                await changeMovie(m, {
+                                  trailerKey: trailer,
+                                  mediaType: 'trailer',
+                                  tmdbId: m.tmdbId,
+                                  isTv,
+                                });
+                                setProjectionMode('trailer');
+                                setShowFilmModal(false);
+                              }}
+                              className="px-2.5 py-1.5 bg-white/10 text-white text-[11px] font-semibold rounded-[2px] hover:bg-white/20 transition-colors font-mono uppercase border border-white/10"
+                              title="Project official trailer"
+                            >
+                              🎬 Trailer
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-12 text-vc-text-muted text-xs">
+                      {isSearchingFilms
+                        ? 'Searching worldwide catalog...'
+                        : 'Search for any global film above to project it in the auditorium.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Curated Masterpieces */}
+            {filmModalTab === 'curated' && (
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                {CURATED_GLOBAL_MOVIES.map((m) => {
+                  const isCurrent = m.id === currentMovie.id;
+                  return (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        'p-2.5 rounded-[4px] border transition-all flex items-center justify-between gap-3',
+                        isCurrent
+                          ? 'border-vc-gold bg-vc-gold/10'
+                          : 'border-white/5 hover:border-vc-gold/30 hover:bg-white/5'
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {m.posterUrl && (
+                          <img
+                            src={m.posterUrl}
+                            alt={m.title}
+                            className="w-10 h-14 object-cover rounded-[2px] flex-shrink-0 border border-white/10"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-white truncate">{m.title}</p>
+                          <p className="text-[10px] text-vc-text-muted">
+                            {m.year} &middot; {m.genre} &middot; ★ {m.rating} &middot; {m.originCountry}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await changeMovie(m, {
+                            trailerKey: m.trailerKey,
+                            mediaType: m.trailerKey ? 'trailer' : 'artwork',
+                          });
+                          setShowFilmModal(false);
+                        }}
+                        className="px-3 py-1.5 bg-vc-gold text-black text-[11px] font-semibold rounded-[2px] hover:bg-vc-gold-bright transition-colors font-mono uppercase flex-shrink-0"
+                      >
+                        {isCurrent ? 'Current' : 'Select'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Tab 3: Custom Video Stream */}
+            {filmModalTab === 'custom' && (
+              <div className="flex-1 flex flex-col justify-center space-y-4 py-4">
+                <p className="text-xs text-vc-text-muted">
+                  Stream any <strong>YouTube video / livestream</strong> or <strong>direct MP4 video link</strong> in real-time sync with all auditorium participants.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] font-mono tracking-wider text-vc-text-muted uppercase block mb-1">
+                      Video Title
+                    </label>
+                    <input
+                      type="text"
+                      value={customStreamTitle}
+                      onChange={(e) => setCustomStreamTitle(e.target.value)}
+                      placeholder="e.g. Big Buck Bunny / Community Screening"
+                      className="w-full bg-white/5 border border-white/10 rounded-[3px] px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-vc-gold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-mono tracking-wider text-vc-text-muted uppercase block mb-1">
+                      Video or YouTube URL
+                    </label>
+                    <input
+                      type="text"
+                      value={customStreamUrl}
+                      onChange={(e) => setCustomStreamUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=... or https://...mp4"
+                      className="w-full bg-white/5 border border-white/10 rounded-[3px] px-3.5 py-2 text-xs text-white placeholder-white/30 focus:border-vc-gold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={async () => {
+                      if (!customStreamUrl.trim()) return;
+                      const url = customStreamUrl.trim();
+                      const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+
+                      if (ytMatch) {
+                        const trailerKey = ytMatch[1];
+                        await changeMovie(
+                          {
+                            id: `custom-yt-${trailerKey}`,
+                            title: customStreamTitle.trim() || 'Custom YouTube Screening',
+                            year: 2026,
+                            genre: 'YouTube Stream',
+                            rating: '9.0',
+                            duration: 'Live',
+                            description: url,
+                            gradientFrom: '#1c2b3a',
+                            gradientTo: '#0a1520',
+                            trailerKey,
+                          },
+                          { trailerKey, mediaType: 'trailer' }
+                        );
+                      } else {
+                        await changeMovie(
+                          {
+                            id: `custom-vid-${Date.now()}`,
+                            title: customStreamTitle.trim() || 'Custom Video Screening',
+                            year: 2026,
+                            genre: 'Direct Stream',
+                            rating: '9.0',
+                            duration: 'Direct Video',
+                            description: url,
+                            gradientFrom: '#1c2b3a',
+                            gradientTo: '#0a1520',
+                            videoUrl: url,
+                          },
+                          { videoUrl: url, mediaType: 'video' }
+                        );
+                      }
                       setShowFilmModal(false);
                     }}
-                    className={cn(
-                      'w-full text-left p-3 rounded-[4px] border transition-all flex items-center gap-3 group',
-                      isCurrent
-                        ? 'border-vc-gold bg-vc-gold/10'
-                        : 'border-white/5 hover:border-vc-gold/30 hover:bg-white/5'
-                    )}
+                    disabled={!customStreamUrl.trim()}
+                    className="px-5 py-2 bg-vc-gold text-black text-xs font-semibold rounded-[3px] hover:bg-vc-gold-bright transition-colors font-mono uppercase tracking-wider disabled:opacity-40"
                   >
-                    <div className="w-10 h-14 bg-black/60 rounded-[2px] flex items-center justify-center font-serif text-vc-gold text-sm font-bold flex-shrink-0">
-                      V
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-vc-text-primary truncate">{m.title}</p>
-                      <p className="text-[11px] text-vc-text-muted">
-                        {m.genre} &middot; {m.year} &middot; {m.duration}
-                      </p>
-                    </div>
-                    {isCurrent && (
-                      <span className="text-[10px] font-mono text-vc-gold uppercase px-2 py-0.5 rounded bg-vc-gold/20">
-                        Playing
-                      </span>
-                    )}
+                    Stream in Auditorium
                   </button>
-                );
-              })}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 4: VCinema Exclusives */}
+            {filmModalTab === 'originals' && (
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {movies.map((m) => {
+                  const isCurrent = m.id === currentMovie.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={async () => {
+                        await changeMovie(m, { mediaType: 'artwork' });
+                        setShowFilmModal(false);
+                      }}
+                      className={cn(
+                        'w-full text-left p-2.5 rounded-[4px] border transition-all flex items-center justify-between gap-3 group',
+                        isCurrent
+                          ? 'border-vc-gold bg-vc-gold/10'
+                          : 'border-white/5 hover:border-vc-gold/30 hover:bg-white/5'
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-14 bg-black/60 rounded-[2px] flex items-center justify-center font-serif text-vc-gold text-xs font-bold flex-shrink-0">
+                          V
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-white truncate">{m.title}</p>
+                          <p className="text-[10px] text-vc-text-muted">
+                            {m.genre} &middot; {m.year} &middot; {m.duration}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-vc-gold uppercase px-2 py-1 rounded bg-white/5 group-hover:bg-vc-gold group-hover:text-black transition-colors">
+                        {isCurrent ? 'Playing' : 'Select'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── AUDITORIUM OTT EPISODE GUIDE DRAWER MODAL ── */}
+      {showEpisodeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/95 backdrop-blur-md animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Auditorium Episode Guide"
+        >
+          <div className="glass-panel w-full max-w-5xl rounded-[8px] border border-vc-gold/40 shadow-[0_25px_90px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden bg-[#08080a]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/80 flex-shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider px-2 py-0.5 rounded bg-vc-gold/10 border border-vc-gold/30">
+                    Auditorium Episode Guide
+                  </span>
+                  <h3 className="font-serif text-base sm:text-lg font-bold text-vc-text-primary">
+                    {currentMovie.title}
+                  </h3>
+                </div>
+                <p className="text-[11px] text-vc-text-muted mt-0.5">
+                  {isHost
+                    ? '👑 As Host, selecting an episode switches projection for all friends in the auditorium'
+                    : 'Currently synchronized with host projection'}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowEpisodeModal(false)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-white/70 hover:text-white flex items-center justify-center transition-colors"
+                aria-label="Close episode guide"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Season Tabs */}
+            <div className="px-5 py-3 border-b border-white/5 bg-black/40 flex items-center gap-2 overflow-x-auto flex-shrink-0">
+              {theatreSeriesDetails?.seasons && theatreSeriesDetails.seasons.length > 0
+                ? theatreSeriesDetails.seasons.map((s) => (
+                    <button
+                      key={s.season_number}
+                      onClick={() => handleDrawerSeasonChange(s.season_number)}
+                      className={cn(
+                        'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap flex items-center gap-1.5',
+                        drawerSeason === s.season_number
+                          ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
+                          : 'bg-white/5 border border-white/10 text-white/70 hover:text-white hover:border-white/20'
+                      )}
+                    >
+                      <span>Season {s.season_number}</span>
+                      <span className={cn('text-[10px]', drawerSeason === s.season_number ? 'text-black/70' : 'text-white/40')}>
+                        ({s.episode_count} eps)
+                      </span>
+                    </button>
+                  ))
+                : (
+                    <span className="text-xs font-mono text-vc-gold">Season 1</span>
+                  )}
+            </div>
+
+            {/* Episode Cards Grid */}
+            <div className="p-5 overflow-y-auto flex-1">
+              {isLoadingDrawerEpisodes ? (
+                <div className="py-16 flex flex-col items-center justify-center space-y-2 text-center">
+                  <div className="w-8 h-8 rounded-full border-2 border-vc-gold border-t-transparent animate-spin" />
+                  <span className="text-xs font-mono text-vc-text-muted">Loading Season {drawerSeason} episodes...</span>
+                </div>
+              ) : theatreEpisodes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                  {theatreEpisodes.map((ep) => {
+                    const isCurrentEp = currentSeason === drawerSeason && currentEpisode === ep.episode_number;
+                    const stillUrl = ep.still_path || currentMovie.backdropUrl || currentMovie.posterUrl;
+                    return (
+                      <div
+                        key={ep.id || ep.episode_number}
+                        onClick={() => isHost && handleSelectEpisode(drawerSeason, ep.episode_number, ep.name)}
+                        className={cn(
+                          'rounded-[4px] border overflow-hidden transition-all duration-200 flex flex-col bg-vc-bg-base/60',
+                          isHost ? 'cursor-pointer hover:bg-vc-bg-base hover:-translate-y-0.5' : 'cursor-default',
+                          isCurrentEp
+                            ? 'border-vc-gold bg-vc-gold/10 ring-1 ring-vc-gold shadow-[0_0_15px_rgba(198,167,106,0.25)]'
+                            : 'border-white/10 hover:border-white/30'
+                        )}
+                      >
+                        <div className="relative aspect-video w-full bg-black/80 overflow-hidden">
+                          {stillUrl && (
+                            <img src={stillUrl} alt={ep.name} className="w-full h-full object-cover" loading="lazy" />
+                          )}
+                          <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/80 text-white backdrop-blur-sm border border-white/10">
+                              EP {ep.episode_number}
+                            </span>
+                            {isCurrentEp && (
+                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-vc-gold text-black uppercase animate-pulse">
+                                ▶ Screening
+                              </span>
+                            )}
+                          </div>
+                          {ep.runtime && (
+                            <span className="absolute bottom-2 right-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/80 text-white/80">
+                              {ep.runtime}m
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="p-3 flex-1 flex flex-col justify-between">
+                          <div>
+                            <h4 className={cn('text-xs font-bold line-clamp-1', isCurrentEp ? 'text-vc-gold' : 'text-white')}>
+                              {ep.episode_number}. {ep.name}
+                            </h4>
+                            <p className="text-[11px] text-vc-text-muted line-clamp-2 mt-1 leading-relaxed">
+                              {ep.overview || 'Synchronized episode streaming.'}
+                            </p>
+                          </div>
+                          {isHost && (
+                            <button className={cn(
+                              'mt-2.5 w-full py-1 rounded-[2px] text-[10px] font-mono uppercase font-semibold transition-colors',
+                              isCurrentEp
+                                ? 'bg-vc-gold text-black'
+                                : 'bg-white/5 hover:bg-vc-gold hover:text-black text-white/80'
+                            )}>
+                              {isCurrentEp ? 'Currently Screening' : 'Screen Episode'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-center text-xs text-vc-text-muted py-12">No episode details available.</p>
+              )}
             </div>
           </div>
         </div>

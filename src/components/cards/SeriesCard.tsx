@@ -1,13 +1,25 @@
 import type { Series } from '../../types';
 import { cn } from '../../utils/cn';
 import { PosterArtwork } from './PosterArtwork';
+import { useWatchModal } from '../../context/WatchModalContext';
 
 interface SeriesCardProps {
   series: Series;
   className?: string;
+  onClick?: () => void;
 }
 
-export default function SeriesCard({ series, className }: SeriesCardProps) {
+export default function SeriesCard({ series, className, onClick }: SeriesCardProps) {
+  const { openWatchModal } = useWatchModal();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      openWatchModal(series);
+    }
+  };
+
   return (
     <article
       className={cn(
@@ -24,17 +36,27 @@ export default function SeriesCard({ series, className }: SeriesCardProps) {
       aria-label={`${series.title}, ${series.seasons} season${series.seasons > 1 ? 's' : ''}, ${series.episodes} episodes, rated ${series.rating}`}
       tabIndex={0}
       role="button"
+      onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          e.currentTarget.click();
+          handleClick();
         }
       }}
     >
       {/* Poster Artwork Container with Parallax Zoom */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-105 motion-reduce:transform-none">
-          <PosterArtwork id={series.id} title={series.title} genre={series.genre} />
+          {series.posterUrl ? (
+            <img
+              src={series.posterUrl}
+              alt={series.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <PosterArtwork id={series.id} title={series.title} genre={series.genre} />
+          )}
         </div>
 
         {/* Film grain */}

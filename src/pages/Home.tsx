@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import CinematicHero from '../features/hero/CinematicHero';
 import {
   NowShowing,
@@ -8,17 +9,59 @@ import WebSeriesSection from '../features/content/WebSeriesSection';
 import TheatreSection from '../features/theatre/TheatreSection';
 import MiraCompanion from '../features/companion/MiraCompanion';
 import {
-  continueWatchingMovies,
-  nowShowingMovies,
-  popularMovies,
-} from '../data/movies';
-import { seriesList } from '../data/series';
+  fetchTrendingMovies,
+  fetchPopularMovies,
+  fetchTrendingSeries,
+  CURATED_GLOBAL_MOVIES,
+  CURATED_GLOBAL_SERIES,
+} from '../services/tmdbService';
+import type { Movie, Series } from '../types';
 
 export default function Home() {
+  const [heroMovie, setHeroMovie] = useState<Movie>(CURATED_GLOBAL_MOVIES[0]);
+  const [nowShowing, setNowShowing] = useState<Movie[]>(CURATED_GLOBAL_MOVIES.slice(0, 6));
+  const [continueWatching, setContinueWatching] = useState<Movie[]>(CURATED_GLOBAL_MOVIES.slice(4, 8));
+  const [popular, setPopular] = useState<Movie[]>(CURATED_GLOBAL_MOVIES.slice(2, 8));
+  const [series, setSeries] = useState<Series[]>(CURATED_GLOBAL_SERIES.slice(0, 6));
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCatalog() {
+      try {
+        const [trending, pop, tv] = await Promise.all([
+          fetchTrendingMovies(),
+          fetchPopularMovies(),
+          fetchTrendingSeries(),
+        ]);
+        if (!isMounted) return;
+
+        if (trending && trending.length > 0) {
+          setHeroMovie(trending[0]);
+          setNowShowing(trending.slice(1, 7));
+          setContinueWatching(
+            trending.slice(7, 11).length > 0 ? trending.slice(7, 11) : trending.slice(1, 5)
+          );
+        }
+        if (pop && pop.length > 0) {
+          setPopular(pop.slice(0, 6));
+        }
+        if (tv && tv.length > 0) {
+          setSeries(tv.slice(0, 6));
+        }
+      } catch (err) {
+        console.warn('Could not fetch live home catalog:', err);
+      }
+    }
+    loadCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="w-full relative overflow-hidden bg-vc-bg-base">
       {/* ── Feature Hero Presentation ── */}
-      <CinematicHero />
+      <CinematicHero movie={heroMovie} />
 
       {/* ── Cinematic Lobby Foyer Threshold ── */}
       <div className="relative max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-6 my-2" aria-hidden="true">
@@ -46,10 +89,10 @@ export default function Home() {
 
       {/* ── Auditorium Screenings & Sections ── */}
       <div className="space-y-6 sm:space-y-10">
-        <NowShowing movies={nowShowingMovies} />
-        <ContinueWatching movies={continueWatchingMovies} />
-        <PopularMovies movies={popularMovies} />
-        <WebSeriesSection series={seriesList.slice(0, 6)} />
+        <NowShowing movies={nowShowing} />
+        <ContinueWatching movies={continueWatching} />
+        <PopularMovies movies={popular} />
+        <WebSeriesSection series={series} />
         <TheatreSection />
         <MiraCompanion />
       </div>

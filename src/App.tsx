@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { AuthProvider } from './context/AuthContext';
+import { WatchModalProvider } from './context/WatchModalContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -38,33 +39,35 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              {/* Public Catalogue & Discovery */}
-              <Route index element={<Home />} />
-              <Route path="movies" element={<Movies />} />
-              <Route path="series" element={<Series />} />
-              <Route path="create-theatre" element={<CreateTheatre />} />
-              <Route path="join-theatre" element={<JoinTheatre />} />
+        <WatchModalProvider>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<MainLayout />}>
+                {/* Public Catalogue & Discovery */}
+                <Route index element={<Home />} />
+                <Route path="movies" element={<Movies />} />
+                <Route path="series" element={<Series />} />
+                <Route path="create-theatre" element={<CreateTheatre />} />
+                <Route path="join-theatre" element={<JoinTheatre />} />
 
-              {/* Authentication Routes */}
-              <Route path="login" element={<Login />} />
-              <Route path="signup" element={<Signup />} />
-              <Route path="forgot-password" element={<ForgotPassword />} />
+                {/* Authentication Routes */}
+                <Route path="login" element={<Login />} />
+                <Route path="signup" element={<Signup />} />
+                <Route path="forgot-password" element={<ForgotPassword />} />
 
-              {/* Protected Routes (Require Authentication) */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="profile" element={<Profile />} />
-                <Route path="settings" element={<Settings />} />
+                {/* Protected Routes (Require Authentication) */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="profile" element={<Profile />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
               </Route>
-            </Route>
 
-            {/* Standalone Fullscreen Theatre Player */}
-            <Route path="/theatre/demo" element={<TheatreDemo />} />
-            <Route path="/theatre/:roomId" element={<TheatreRoom />} />
-          </Routes>
-        </Suspense>
+              {/* Standalone Fullscreen Theatre Player */}
+              <Route path="/theatre/demo" element={<TheatreDemo />} />
+              <Route path="/theatre/:roomId" element={<TheatreRoom />} />
+            </Routes>
+          </Suspense>
+        </WatchModalProvider>
       </AuthProvider>
     </BrowserRouter>
   );

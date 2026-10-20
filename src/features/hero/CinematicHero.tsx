@@ -1,12 +1,41 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import type { Movie } from '../../types';
+import { useWatchModal } from '../../context/WatchModalContext';
 
-export default function CinematicHero() {
+interface CinematicHeroProps {
+  movie?: Movie;
+}
+
+export default function CinematicHero({ movie }: CinematicHeroProps) {
+  const navigate = useNavigate();
+  const { openWatchModal } = useWatchModal();
+  const title = movie?.title || 'The Grand Horizon';
+  const year = movie?.year || 2026;
+  const duration = movie?.duration || '2h 18m';
+  const genre = movie?.genre || 'Psychological Drama';
+  const description =
+    movie?.description ||
+    'A breathtaking journey across the edge of the world, where silence speaks louder than words and the horizon holds infinite secrets. Experience it synchronized with your private circle.';
+
   return (
     <section
       className="relative min-h-[92svh] sm:min-h-screen w-full flex flex-col justify-end overflow-hidden film-grain"
-      aria-label="Featured Film: The Grand Horizon"
+      aria-label={`Featured Film: ${title}`}
     >
       {/* ── Background Atmospheric Layers ── */}
+      {/* Real Film Backdrop (from TMDB) */}
+      {movie?.backdropUrl && (
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <img
+            src={movie.backdropUrl}
+            alt={title}
+            className="w-full h-full object-cover object-center opacity-40 scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#080807] via-[#080807]/75 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#080807] via-[#080807]/85 to-transparent" />
+        </div>
+      )}
+
       {/* Deep twilight space & warm amber horizon radial gradients */}
       <div
         className="absolute inset-0 z-0 pointer-events-none"
@@ -104,20 +133,18 @@ export default function CinematicHero() {
                 Featured Premiere
               </span>
               <span className="text-[11px] sm:text-xs text-vc-text-muted/90 font-medium">
-                2026 &middot; 2h 18m &middot; 4K HDR &middot; Dolby 5.1
+                {year} &middot; {duration} &middot; 4K HDR &middot; Dolby 5.1
               </span>
             </div>
 
             {/* Editorial Title */}
-            <h1 className="text-4xl xs:text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-serif font-bold text-vc-text-primary leading-[1.04] tracking-tight mb-4 sm:mb-5">
-              The Grand
-              <br />
-              <span className="cinema-gradient-text">Horizon</span>
+            <h1 className="text-4xl xs:text-5xl sm:text-6xl md:text-7xl font-serif font-bold text-vc-text-primary leading-[1.06] tracking-tight mb-4 sm:mb-5">
+              {title}
             </h1>
 
             {/* Genre & Festival Laurel Tags */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-4 sm:mb-6">
-              {['Psychological Drama', 'Grand Cinema', 'Official Selection'].map((tag) => (
+              {[genre, 'Grand Cinema', 'Official Selection'].map((tag) => (
                 <span
                   key={tag}
                   className="text-[10px] sm:text-[11px] text-vc-text-muted bg-white/[0.03] border border-vc-border/80 px-2.5 py-0.5 rounded-[2px]"
@@ -128,33 +155,35 @@ export default function CinematicHero() {
             </div>
 
             {/* Synopsis Description */}
-            <p className="text-sm sm:text-base md:text-lg text-vc-text-muted/95 leading-relaxed mb-6 sm:mb-8 max-w-xl">
-              A breathtaking journey across the edge of the world, where silence speaks louder than words and the horizon holds infinite secrets. Experience it synchronized with your private circle.
+            <p className="text-sm sm:text-base md:text-lg text-vc-text-muted/95 leading-relaxed mb-6 sm:mb-8 max-w-xl line-clamp-3">
+              {description}
             </p>
 
             {/* Primary Action Controls */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-              <Link
-                to="/theatre/demo"
-                className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 bg-vc-gold text-black text-sm font-semibold rounded-[3px] hover:bg-vc-gold/90 transition-all duration-200 active:scale-95 shadow-[0_4px_20px_rgba(198,167,106,0.3)]"
-                aria-label="Enter Theatre to watch The Grand Horizon"
+              <button
+                type="button"
+                onClick={() => {
+                  if (movie) openWatchModal(movie);
+                  else navigate('/movies');
+                }}
+                className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 bg-vc-gold text-black text-sm font-semibold rounded-[3px] hover:bg-vc-gold/90 transition-all duration-200 active:scale-95 shadow-[0_4px_20px_rgba(198,167,106,0.3)] cursor-pointer"
+                aria-label={`Watch ${title} Now`}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M5 3l14 9-14 9V3z" />
                 </svg>
-                <span>ENTER THEATRE</span>
-              </Link>
-
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-vc-bg-card/80 text-vc-text-primary text-sm font-medium rounded-[3px] border border-vc-border/90 hover:border-vc-gold/40 hover:bg-white/5 transition-all duration-200 active:scale-95 backdrop-blur-sm"
-                aria-label="Add The Grand Horizon to My List"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                <span>ADD TO LIST</span>
+                <span>WATCH NOW</span>
               </button>
+
+              <Link
+                to="/create-theatre"
+                state={{ preselectedMovieId: movie?.id }}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-vc-bg-card/80 text-vc-text-primary text-sm font-medium rounded-[3px] border border-vc-border/90 hover:border-vc-gold/40 hover:bg-white/5 transition-all duration-200 active:scale-95 backdrop-blur-sm"
+                aria-label={`Create Theatre for ${title}`}
+              >
+                <span>🏛 CREATE THEATRE</span>
+              </Link>
             </div>
           </div>
 
@@ -183,19 +212,29 @@ export default function CinematicHero() {
 
               {/* Miniature Cinematic Viewport */}
               <div className="relative aspect-[2.39/1] rounded-[2px] overflow-hidden border border-white/10 mb-4 bg-black">
-                {/* Visual Horizon Layer */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      'radial-gradient(ellipse at 50% 60%, #2a1f14 0%, #120e0a 60%, #060504 100%)',
-                  }}
-                />
-                {/* Silhouette mountains inside lens */}
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 240 100" preserveAspectRatio="none">
-                  <path d="M0 65 L40 50 L90 62 L130 45 L170 58 L210 40 L240 55 L240 100 L0 100 Z" fill="#080706" />
-                  <circle cx="130" cy="42" r="1.5" fill="#c6a76a" />
-                </svg>
+                {movie?.backdropUrl || movie?.posterUrl ? (
+                  <img
+                    src={movie.backdropUrl || movie.posterUrl}
+                    alt={title}
+                    className="w-full h-full object-cover opacity-85"
+                  />
+                ) : (
+                  <>
+                    {/* Visual Horizon Layer */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          'radial-gradient(ellipse at 50% 60%, #2a1f14 0%, #120e0a 60%, #060504 100%)',
+                      }}
+                    />
+                    {/* Silhouette mountains inside lens */}
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 240 100" preserveAspectRatio="none">
+                      <path d="M0 65 L40 50 L90 62 L130 45 L170 58 L210 40 L240 55 L240 100 L0 100 Z" fill="#080706" />
+                      <circle cx="130" cy="42" r="1.5" fill="#c6a76a" />
+                    </svg>
+                  </>
+                )}
                 {/* Lens Flare Streak */}
                 <div className="absolute top-[48%] inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[#c6a76a]/60 to-transparent shadow-[0_0_8px_#c6a76a]" />
                 

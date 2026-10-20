@@ -9,6 +9,12 @@ export interface Movie {
   gradientFrom: string;
   gradientTo: string;
   progress?: number;
+  posterUrl?: string;
+  backdropUrl?: string;
+  tmdbId?: number;
+  trailerKey?: string;
+  videoUrl?: string;
+  originCountry?: string;
 }
 
 export interface Series {
@@ -22,6 +28,12 @@ export interface Series {
   description: string;
   gradientFrom: string;
   gradientTo: string;
+  posterUrl?: string;
+  backdropUrl?: string;
+  tmdbId?: number;
+  trailerKey?: string;
+  videoUrl?: string;
+  originCountry?: string;
 }
 
 export interface TheatreRoom {

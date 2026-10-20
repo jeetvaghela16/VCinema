@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../lib/firebase/config';
 import { movies } from '../data/movies';
+import { CURATED_GLOBAL_MOVIES } from './tmdbService';
 import type {
   LiveTheatreRoom,
   TheatreParticipant,
@@ -55,6 +56,28 @@ export function formatTimecode(seconds: number): string {
 }
 
 /**
+ * Recursively strips undefined fields from an object so Firestore setDoc/updateDoc never fails
+ */
+export function sanitizeFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeFirestore(item)) as any;
+  }
+  if (typeof data === 'object') {
+    const clean: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      if (value !== undefined) {
+        clean[key] = sanitizeFirestore(value);
+      }
+    }
+    return clean as any;
+  }
+  return data;
+}
+
+/**
  * Calculates authoritative target position in seconds based on wall-clock elapsed time.
  * Synchronization Formula:
  * targetPosition = storedPosition + (now - lastUpdated) * playbackRate
@@ -71,6 +94,27 @@ export function calculateAuthoritativePosition(playback: PlaybackState): number 
   return Math.min(calculated, playback.duration);
 }
 
+export interface CreateTheatreMediaData {
+  id: string;
+  title: string;
+  year?: number;
+  genre?: string;
+  rating?: string;
+  duration?: string;
+  description?: string;
+  posterUrl?: string;
+  backdropUrl?: string;
+  trailerKey?: string;
+  videoUrl?: string;
+  tmdbId?: number;
+  mediaType?: 'artwork' | 'trailer' | 'video' | 'embed';
+  isTv?: boolean;
+  season?: number;
+  episode?: number;
+  streamServerId?: string;
+  audioLanguage?: string;
+}
+
 export interface CreateTheatreParams {
   name: string;
   format: TheatreFormat;
@@ -78,6 +122,7 @@ export interface CreateTheatreParams {
   movieId: string;
   isPasswordProtected: boolean;
   password?: string;
+  mediaData?: CreateTheatreMediaData;
 }
 
 /**
@@ -103,7 +148,12 @@ export async function createTheatreRoom(
 
   const theatreRef = doc(collection(db, 'theatres'));
   const theatreId = theatreRef.id;
-  const selectedMovie = movies.find((m) => m.id === params.movieId) ?? movies[0];
+  const media = params.mediaData;
+  const selectedMovie =
+    media ||
+    movies.find((m) => m.id === params.movieId) ||
+    CURATED_GLOBAL_MOVIES.find((m) => m.id === params.movieId) ||
+    movies[0];
 
   // Default duration in seconds (2h 18m -> 8280s)
   const initialDuration = 8280;
@@ -115,8 +165,21 @@ export async function createTheatreRoom(
     lastUpdated: Date.now(),
     playbackRate: 1.0,
     version: 1,
-    currentMovieId: selectedMovie.id,
-    currentMovieTitle: selectedMovie.title,
+    currentMovieId: selectedMovie.id || params.movieId,
+    currentMovieTitle: selectedMovie.title || 'Feature Presentation',
+    currentMoviePoster: selectedMovie.posterUrl || '',
+    currentMovieBackdrop: selectedMovie.backdropUrl || '',
+    currentMovieTrailerKey: selectedMovie.trailerKey || '',
+    currentMovieVideoUrl: selectedMovie.videoUrl || '',
+    mediaType:
+      media?.mediaType ||
+      (selectedMovie.videoUrl ? 'video' : selectedMovie.trailerKey ? 'trailer' : selectedMovie.tmdbId ? 'embed' : 'artwork'),
+    tmdbId: selectedMovie.tmdbId || (null as any),
+    isTv: media?.isTv ?? false,
+    season: media?.season || 1,
+    episode: media?.episode || 1,
+    streamServerId: media?.streamServerId || 'vidfast',
+    audioLanguage: media?.audioLanguage || 'multi',
   };
 
   const newRoom: LiveTheatreRoom = {
@@ -129,15 +192,15 @@ export async function createTheatreRoom(
     hostPhoto: host.photoURL || null,
     maxViewers: params.maxViewers,
     isPasswordProtected: params.isPasswordProtected,
-    password: params.isPasswordProtected ? params.password?.trim() : undefined,
+    password: params.isPasswordProtected && params.password?.trim() ? params.password.trim() : null as any,
     playback: initialPlayback,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     isActive: true,
   };
 
-  // 1. Create Room Document (Authenticated Host Only)
-  await setDoc(theatreRef, newRoom);
+  // 1. Create Room Document (Authenticated Host Only) - strictly sanitized against undefined values
+  await setDoc(theatreRef, sanitizeFirestore(newRoom));
 
   // 2. Register Host as the first Participant
   const hostParticipant: TheatreParticipant = {
@@ -151,11 +214,11 @@ export async function createTheatreRoom(
   };
 
   const hostDocRef = doc(db, 'theatres', theatreId, 'participants', host.uid);
-  await setDoc(hostDocRef, hostParticipant);
+  await setDoc(hostDocRef, sanitizeFirestore(hostParticipant));
 
   // 3. Post Initial System Message to Theatre Chat (Authenticated as host)
   const welcomeMessageRef = doc(collection(db, 'theatres', theatreId, 'messages'));
-  await setDoc(welcomeMessageRef, {
+  await setDoc(welcomeMessageRef, sanitizeFirestore({
     id: welcomeMessageRef.id,
     theatreId,
     userId: host.uid,
@@ -163,7 +226,7 @@ export async function createTheatreRoom(
     message: `Auditorium initialized. Host controls projection.`,
     timestamp: '0:00',
     createdAt: Date.now(),
-  });
+  }));
 
   return newRoom;
 }
@@ -223,7 +286,7 @@ export async function joinTheatreRoom(
     lastSeen: Date.now(),
   };
 
-  await setDoc(participantRef, participantData, { merge: true });
+  await setDoc(participantRef, sanitizeFirestore(participantData), { merge: true });
 }
 
 /**
@@ -372,10 +435,10 @@ export async function updatePlayback(
     lastUpdated: Date.now(),
   };
 
-  await updateDoc(roomDocRef, {
+  await updateDoc(roomDocRef, sanitizeFirestore({
     playback: updated,
     updatedAt: Date.now(),
-  });
+  }));
 }
 
 /**
@@ -403,5 +466,5 @@ export async function sendChatMessage(
     createdAt: Date.now(),
   };
 
-  await setDoc(msgRef, newMsg);
+  await setDoc(msgRef, sanitizeFirestore(newMsg));
 }

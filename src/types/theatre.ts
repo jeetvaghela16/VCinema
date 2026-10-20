@@ -11,6 +11,17 @@ export interface PlaybackState {
   version: number; // monotonic sequence counter to prevent race conditions
   currentMovieId: string;
   currentMovieTitle: string;
+  currentMoviePoster?: string;
+  currentMovieBackdrop?: string;
+  currentMovieTrailerKey?: string;
+  currentMovieVideoUrl?: string;
+  mediaType?: 'artwork' | 'trailer' | 'video' | 'embed';
+  tmdbId?: number;
+  isTv?: boolean;
+  season?: number;
+  episode?: number;
+  streamServerId?: string;
+  audioLanguage?: string;
 }
 
 export interface TheatreParticipant {
@@ -44,7 +55,7 @@ export interface LiveTheatreRoom {
   hostPhoto?: string | null;
   maxViewers: number;
   isPasswordProtected: boolean;
-  password?: string;
+  password?: string | null;
   playback: PlaybackState;
   createdAt: number;
   updatedAt: number;
