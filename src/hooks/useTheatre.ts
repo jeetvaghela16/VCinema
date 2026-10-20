@@ -9,6 +9,11 @@ import {
   joinTheatreRoom,
   leaveTheatreRoom,
   updateParticipantHeartbeat,
+  endScreening,
+  kickParticipant,
+  toggleMuteParticipant,
+  toggleLockAuditorium,
+  clearChatMessages,
 } from '../services/theatreService';
 import type {
   LiveTheatreRoom,
@@ -36,12 +41,24 @@ export function useTheatre(theatreId: string | undefined) {
     return user.uid === room.hostId;
   }, [user, room]);
 
+  const isHostRef = useRef(isHost);
+  isHostRef.current = isHost;
+
   // Check if the host is currently connected and active
   const isHostOnline = useMemo(() => {
     if (!room) return false;
     const hostParticipant = participants.find((p) => p.uid === room.hostId);
     return hostParticipant ? hostParticipant.isOnline : false;
   }, [room, participants]);
+
+  // Current user kick and mute status
+  const currentParticipant = participants.find((p) => p.uid === user?.uid);
+  const isKicked = Boolean(currentParticipant?.isKicked);
+  const isMuted = Boolean(currentParticipant?.isMuted);
+
+  // Check if room has been ended by the host
+  const isRoomEnded = Boolean(room?.isEnded || (room && !room.isActive));
+  const endedReason = room?.endedReason || 'The host has ended this screening session.';
 
   // Subscribe to room, participants, and chat
   useEffect(() => {
@@ -91,7 +108,7 @@ export function useTheatre(theatreId: string | undefined) {
     // 6. Beforeunload handler for clean departure on tab/browser close
     const handleBeforeUnload = () => {
       if (user && theatreId) {
-        leaveTheatreRoom(theatreId, user.uid);
+        leaveTheatreRoom(theatreId, user.uid, isHostRef.current);
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -105,7 +122,7 @@ export function useTheatre(theatreId: string | undefined) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
 
       if (user && theatreId) {
-        leaveTheatreRoom(theatreId, user.uid);
+        leaveTheatreRoom(theatreId, user.uid, isHostRef.current);
       }
     };
   }, [theatreId, user]);
@@ -259,6 +276,48 @@ export function useTheatre(theatreId: string | undefined) {
     [theatreId, isHost]
   );
 
+  // Host Authority: Kick Participant
+  const kickUser = useCallback(
+    async (participantId: string, participantName = 'Viewer') => {
+      if (!theatreId || !isHost) return;
+      await kickParticipant(theatreId, participantId, participantName);
+    },
+    [theatreId, isHost]
+  );
+
+  // Host Authority: Mute / Unmute Participant
+  const muteUser = useCallback(
+    async (participantId: string, isMuted: boolean, participantName = 'Viewer') => {
+      if (!theatreId || !isHost) return;
+      await toggleMuteParticipant(theatreId, participantId, isMuted, participantName);
+    },
+    [theatreId, isHost]
+  );
+
+  // Host Authority: Lock / Unlock Auditorium
+  const lockAuditorium = useCallback(
+    async (isLocked: boolean) => {
+      if (!theatreId || !isHost) return;
+      await toggleLockAuditorium(theatreId, isLocked);
+    },
+    [theatreId, isHost]
+  );
+
+  // Host Authority: End Screening for All
+  const endRoom = useCallback(
+    async (reason = 'The host has ended this screening session.') => {
+      if (!theatreId || !isHost) return;
+      await endScreening(theatreId, reason);
+    },
+    [theatreId, isHost]
+  );
+
+  // Host Authority: Clear Chat
+  const clearChat = useCallback(async () => {
+    if (!theatreId || !isHost) return;
+    await clearChatMessages(theatreId);
+  }, [theatreId, isHost]);
+
   return {
     room,
     participants,
@@ -267,6 +326,10 @@ export function useTheatre(theatreId: string | undefined) {
     error,
     isHost,
     isHostOnline,
+    isKicked,
+    isMuted,
+    isRoomEnded,
+    endedReason,
     play,
     pause,
     seek,
@@ -274,6 +337,11 @@ export function useTheatre(theatreId: string | undefined) {
     changeEpisode,
     changeServer,
     changeAudioLanguage,
+    kickUser,
+    muteUser,
+    lockAuditorium,
+    endRoom,
+    clearChat,
     sendMessage,
   };
 }

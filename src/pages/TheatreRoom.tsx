@@ -34,6 +34,10 @@ export default function TheatreRoom() {
     error,
     isHost,
     isHostOnline,
+    isKicked,
+    isMuted,
+    isRoomEnded,
+    endedReason,
     play,
     pause,
     seek,
@@ -41,6 +45,11 @@ export default function TheatreRoom() {
     changeEpisode,
     changeServer,
     changeAudioLanguage,
+    kickUser,
+    muteUser,
+    lockAuditorium,
+    endRoom,
+    clearChat,
     sendMessage,
   } = useTheatre(roomId);
 
@@ -48,6 +57,8 @@ export default function TheatreRoom() {
   const [chatText, setChatText] = useState('');
   const [volume, setVolume] = useState(80);
   const [showFilmModal, setShowFilmModal] = useState(false);
+  const [showEndScreeningConfirm, setShowEndScreeningConfirm] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [copiedToast, setCopiedToast] = useState(false);
   const [localTime, setLocalTime] = useState(0);
 
@@ -160,25 +171,56 @@ export default function TheatreRoom() {
   };
 
   const handleSelectServer = async (serverId: string) => {
+    if (!isHost) return;
     setTheatreServer(serverId);
-    if (isHost) {
-      await changeServer(serverId);
-    }
+    await changeServer(serverId);
+    const sName = STREAM_SERVERS.find((s) => s.id === serverId)?.name.replace(/Server \d+ /, '') || serverId;
+    await sendMessage(`Host switched projection server to ${sName}`);
   };
 
   const handleSelectDub = async (langId: string) => {
+    if (!isHost) return;
     setTheatreAudioLang(langId);
     const langConfig = AUDIO_LANGUAGES.find((l) => l.id === langId);
     if (langConfig) {
       setTheatreServer(langConfig.recommendedServerId);
-      if (isHost) {
-        await changeServer(langConfig.recommendedServerId);
-      }
+      await changeServer(langConfig.recommendedServerId);
     }
-    if (isHost) {
-      await changeAudioLanguage(langId);
-    }
+    await changeAudioLanguage(langId);
+    const lLabel = AUDIO_LANGUAGES.find((l) => l.id === langId)?.label || langId;
+    await sendMessage(`Host switched audio track to ${lLabel}`);
   };
+
+  const handleSetProjectionMode = async (mode: 'stream' | 'trailer' | 'artwork') => {
+    if (!isHost) return;
+    setProjectionMode(mode);
+    const mediaType = mode === 'stream' ? 'embed' : mode;
+    await changeMovie(currentMovie, { mediaType });
+  };
+
+  const handleConfirmEndScreening = async () => {
+    setShowEndScreeningConfirm(false);
+    await endRoom('The host has concluded the screening session.');
+    navigate('/');
+  };
+
+  // Automatic redirect timer when screening ends or user is kicked
+  useEffect(() => {
+    if (isRoomEnded || isKicked) {
+      setRedirectCountdown(4);
+      const timer = setInterval(() => {
+        setRedirectCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(timer);
+            navigate('/');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [isRoomEnded, isKicked, navigate]);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
@@ -421,8 +463,25 @@ export default function TheatreRoom() {
           </div>
         </div>
 
-        {/* Right actions: Invite & Leave */}
-        <div className="flex items-center gap-2.5">
+        {/* Right actions: Lock, Invite & Leave/End */}
+        <div className="flex items-center gap-2">
+          {/* Host Authority: Lock Room Toggle */}
+          {isHost && (
+            <button
+              type="button"
+              onClick={() => lockAuditorium(!room.isLocked)}
+              className={cn(
+                'hidden sm:inline-flex items-center gap-1 text-[10px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-[2px] border transition-all',
+                room.isLocked
+                  ? 'border-amber-500/60 bg-amber-950/40 text-amber-300'
+                  : 'border-white/10 hover:border-white/30 text-white/70'
+              )}
+              title={room.isLocked ? 'Auditorium is locked. Click to unlock.' : 'Click to lock auditorium against new joins.'}
+            >
+              <span>{room.isLocked ? '🔒 Locked' : '🔓 Open'}</span>
+            </button>
+          )}
+
           <button
             onClick={handleCopyInvite}
             className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-[2px] border border-vc-gold/40 text-vc-gold hover:bg-vc-gold/10 transition-all"
@@ -430,12 +489,22 @@ export default function TheatreRoom() {
             + Invite
           </button>
 
-          <button
-            onClick={() => navigate('/')}
-            className="text-[10px] px-3 py-1 rounded-[2px] border border-vc-burgundy/60 text-vc-burgundy/90 hover:bg-vc-burgundy/15 transition-all font-mono uppercase tracking-wider"
-          >
-            Leave
-          </button>
+          {isHost ? (
+            <button
+              onClick={() => setShowEndScreeningConfirm(true)}
+              className="text-[10px] px-3 py-1 rounded-[2px] border border-red-500/70 bg-red-950/40 text-red-300 hover:bg-red-900/60 transition-all font-mono uppercase tracking-wider font-semibold shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+              title="Host Authority: End screening session for all viewers"
+            >
+              ⏹ End Screening
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/')}
+              className="text-[10px] px-3 py-1 rounded-[2px] border border-vc-burgundy/60 text-vc-burgundy/90 hover:bg-vc-burgundy/15 transition-all font-mono uppercase tracking-wider"
+            >
+              Leave
+            </button>
+          )}
         </div>
       </header>
 
@@ -750,14 +819,21 @@ export default function TheatreRoom() {
                       <button
                         key={server.id}
                         type="button"
+                        disabled={!isHost}
                         onClick={() => handleSelectServer(server.id)}
                         className={cn(
                           'px-2.5 py-1 rounded-[3px] text-[10px] font-mono transition-all whitespace-nowrap flex items-center gap-1.5 flex-shrink-0',
                           isSelected
                             ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
-                            : 'bg-white/5 text-white/70 hover:text-white border border-white/10 hover:border-white/25'
+                            : isHost
+                            ? 'bg-white/5 text-white/70 hover:text-white border border-white/10 hover:border-white/25 cursor-pointer'
+                            : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed opacity-40'
                         )}
-                        title={`${server.name} — ${server.audioSupport}`}
+                        title={
+                          isHost
+                            ? `${server.name} — ${server.audioSupport}`
+                            : `${server.name} (Controlled by Host 👑)`
+                        }
                       >
                         <span>{server.name.replace(/Server \d+ /, '')}</span>
                         <span className={cn('text-[9px] px-1 py-0.2 rounded', isSelected ? 'bg-black/20 text-black' : 'bg-white/10 text-white/60')}>
@@ -766,18 +842,26 @@ export default function TheatreRoom() {
                       </button>
                     );
                   })}
+                  {!isHost && (
+                    <span className="text-[9px] font-mono text-vc-gold/80 bg-vc-gold/10 px-2 py-0.5 rounded border border-vc-gold/20 flex-shrink-0">
+                      👑 Host Controlled
+                    </span>
+                  )}
                 </div>
 
                 {/* Projection Mode Switcher */}
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     type="button"
-                    onClick={() => setProjectionMode('stream')}
+                    disabled={!isHost}
+                    onClick={() => handleSetProjectionMode('stream')}
                     className={cn(
                       'px-2.5 py-1 rounded-[2px] text-[10px] font-mono uppercase tracking-wider transition-all',
                       projectionMode === 'stream'
                         ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
-                        : 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                        : isHost
+                        ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                        : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                     )}
                   >
                     ▶ Stream
@@ -785,12 +869,15 @@ export default function TheatreRoom() {
                   {currentMovie.trailerKey && (
                     <button
                       type="button"
-                      onClick={() => setProjectionMode('trailer')}
+                      disabled={!isHost}
+                      onClick={() => handleSetProjectionMode('trailer')}
                       className={cn(
                         'px-2.5 py-1 rounded-[2px] text-[10px] font-mono uppercase tracking-wider transition-all',
                         projectionMode === 'trailer'
                           ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
-                          : 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                          : isHost
+                          ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                          : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                       )}
                     >
                       🎬 Trailer
@@ -798,12 +885,15 @@ export default function TheatreRoom() {
                   )}
                   <button
                     type="button"
-                    onClick={() => setProjectionMode('artwork')}
+                    disabled={!isHost}
+                    onClick={() => handleSetProjectionMode('artwork')}
                     className={cn(
                       'px-2.5 py-1 rounded-[2px] text-[10px] font-mono uppercase tracking-wider transition-all',
                       projectionMode === 'artwork'
                         ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
-                        : 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                        : isHost
+                        ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                        : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                     )}
                   >
                     🖼 Art
@@ -822,19 +912,27 @@ export default function TheatreRoom() {
                     <button
                       key={lang.id}
                       type="button"
+                      disabled={!isHost}
                       onClick={() => handleSelectDub(lang.id)}
                       className={cn(
                         'px-2.5 py-1 rounded-[2px] text-[10px] font-mono transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0',
                         theatreAudioLang === lang.id
                           ? 'bg-vc-gold text-black font-bold shadow-[0_0_8px_rgba(198,167,106,0.3)]'
-                          : 'bg-white/5 text-white/70 hover:text-white border border-white/10'
+                          : isHost
+                          ? 'bg-white/5 text-white/70 hover:text-white border border-white/10'
+                          : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed opacity-40'
                       )}
-                      title={lang.description}
+                      title={isHost ? lang.description : `${lang.label} (Controlled by Host 👑)`}
                     >
                       <span>{lang.glyph}</span>
                       <span>{lang.label.split('·')[0].trim()}</span>
                     </button>
                   ))}
+                  {!isHost && (
+                    <span className="text-[9px] font-mono text-vc-gold/80 bg-vc-gold/10 px-2 py-0.5 rounded border border-vc-gold/20 flex-shrink-0">
+                      👑 Host Controlled
+                    </span>
+                  )}
                 </div>
 
                 {/* Host Control Actions */}
@@ -855,45 +953,87 @@ export default function TheatreRoom() {
           {/* ── PARTICIPANTS STRIP ── */}
           <div className="flex-shrink-0 px-4 md:px-8 pb-6">
             <div className="max-w-5xl mx-auto flex items-center gap-3 overflow-x-auto py-1">
-              {participants.map((p) => (
-                <div
-                  key={p.uid}
-                  className={cn(
-                    'flex items-center gap-2 flex-shrink-0 bg-black/40 px-2.5 py-1.5 rounded-[4px] border transition-opacity',
-                    p.isOnline ? 'border-white/5 opacity-100' : 'border-white/5 opacity-50'
-                  )}
-                >
-                  <div className="relative">
-                    <div
-                      className={cn(
-                        'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold',
-                        p.isHost
-                          ? 'bg-vc-gold/15 border border-vc-gold/40 text-vc-gold'
-                          : 'bg-vc-bg-card border border-vc-border text-vc-text-muted'
-                      )}
-                    >
-                      {p.displayName ? p.displayName[0].toUpperCase() : 'V'}
-                    </div>
-                    <div
-                      className={cn(
-                        'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-black',
-                        p.isOnline ? 'bg-green-500' : 'bg-white/20'
-                      )}
-                      title={p.isOnline ? 'Online' : 'Offline'}
-                    />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-medium text-vc-text-primary leading-none">
-                      {p.displayName}
-                    </p>
-                    {p.isHost && (
-                      <span className="text-[8px] font-mono text-vc-gold uppercase tracking-wider font-semibold">
-                        Host
-                      </span>
+              {participants.map((p) => {
+                const isItemHost = p.isHost || p.uid === room.hostId;
+                const isMe = p.uid === user?.uid;
+                return (
+                  <div
+                    key={p.uid}
+                    className={cn(
+                      'flex items-center gap-2 flex-shrink-0 bg-black/40 px-2.5 py-1.5 rounded-[4px] border transition-opacity',
+                      p.isOnline ? 'border-white/10 opacity-100' : 'border-white/5 opacity-50'
                     )}
+                  >
+                    <div className="relative">
+                      <div
+                        className={cn(
+                          'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold',
+                          isItemHost
+                            ? 'bg-vc-gold/15 border border-vc-gold/40 text-vc-gold'
+                            : 'bg-vc-bg-card border border-vc-border text-vc-text-muted'
+                        )}
+                      >
+                        {p.displayName ? p.displayName[0].toUpperCase() : 'V'}
+                      </div>
+                      <div
+                        className={cn(
+                          'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-black',
+                          p.isOnline ? 'bg-green-500' : 'bg-white/20'
+                        )}
+                        title={p.isOnline ? 'Online' : 'Offline'}
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] font-medium text-vc-text-primary leading-none">
+                          {p.displayName} {isMe && '(You)'}
+                        </p>
+                        {isItemHost && (
+                          <span className="text-[8px] font-mono text-vc-gold uppercase tracking-wider font-semibold">
+                            👑 Host
+                          </span>
+                        )}
+                        {p.isMuted && (
+                          <span className="text-[8px] font-mono text-amber-400 bg-amber-950/50 px-1 rounded border border-amber-500/30">
+                            🔇 Muted
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Host Authority Controls over this viewer */}
+                      {isHost && !isItemHost && !isMe && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => muteUser(p.uid, !p.isMuted, p.displayName)}
+                            className={cn(
+                              'text-[8px] font-mono px-1.5 py-0.5 rounded border transition-colors',
+                              p.isMuted
+                                ? 'bg-amber-950/60 border-amber-500/40 text-amber-300 hover:bg-amber-900'
+                                : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                            )}
+                            title={p.isMuted ? 'Unmute participant' : 'Mute participant from chat'}
+                          >
+                            {p.isMuted ? '🔊 Unmute' : '🔇 Mute'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Kick ${p.displayName} out of this screening?`)) {
+                                kickUser(p.uid, p.displayName);
+                              }
+                            }}
+                            className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-red-950/50 border border-red-500/40 text-red-300 hover:bg-red-900/80 transition-colors"
+                            title="Kick participant from auditorium"
+                          >
+                            🚫 Kick
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -911,13 +1051,29 @@ export default function TheatreRoom() {
                 </h2>
                 <span className="text-[10px] text-vc-gold font-mono">({messages.length})</span>
               </div>
-              <button
-                onClick={() => setChatOpen(false)}
-                className="text-white/40 hover:text-white transition-colors"
-                aria-label="Close Chat"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {isHost && messages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Clear all chat messages in this auditorium?')) {
+                        clearChat();
+                      }
+                    }}
+                    className="text-[9px] font-mono text-white/50 hover:text-vc-gold transition-colors px-1 py-0.5 rounded hover:bg-white/5"
+                    title="Host Authority: Clear all chat history"
+                  >
+                    🧹 Clear
+                  </button>
+                )}
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="text-white/40 hover:text-white transition-colors"
+                  aria-label="Close Chat"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Chat Messages List */}
@@ -983,13 +1139,21 @@ export default function TheatreRoom() {
                     type="text"
                     value={chatText}
                     onChange={(e) => setChatText(e.target.value)}
-                    placeholder="Message auditorium..."
+                    disabled={isMuted}
+                    placeholder={
+                      isMuted
+                        ? '🔇 You were muted by the Host'
+                        : 'Message auditorium...'
+                    }
                     maxLength={300}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-[3px] px-3 py-2 text-xs text-vc-text-primary placeholder-white/30 focus:border-vc-gold/50 focus:outline-none transition-colors"
+                    className={cn(
+                      'flex-1 bg-white/5 border border-white/10 rounded-[3px] px-3 py-2 text-xs text-vc-text-primary placeholder-white/30 focus:border-vc-gold/50 focus:outline-none transition-colors',
+                      isMuted && 'opacity-50 cursor-not-allowed bg-red-950/20 border-red-500/30'
+                    )}
                   />
                   <button
                     type="submit"
-                    disabled={!chatText.trim()}
+                    disabled={!chatText.trim() || isMuted}
                     className="px-3 py-2 bg-vc-gold text-black rounded-[3px] text-xs font-semibold hover:bg-vc-gold/90 disabled:opacity-40 transition-all font-mono"
                   >
                     Send
@@ -1498,7 +1662,7 @@ export default function TheatreRoom() {
                               {ep.overview || 'Synchronized episode streaming.'}
                             </p>
                           </div>
-                          {isHost && (
+                          {isHost ? (
                             <button className={cn(
                               'mt-2.5 w-full py-1 rounded-[2px] text-[10px] font-mono uppercase font-semibold transition-colors',
                               isCurrentEp
@@ -1507,6 +1671,10 @@ export default function TheatreRoom() {
                             )}>
                               {isCurrentEp ? 'Currently Screening' : 'Screen Episode'}
                             </button>
+                          ) : (
+                            <div className="mt-2.5 w-full py-1 text-center text-[10px] font-mono text-vc-gold/70 bg-white/5 rounded-[2px]">
+                              {isCurrentEp ? '▶ Currently Screening' : '👑 Host Controlled'}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1517,6 +1685,79 @@ export default function TheatreRoom() {
                 <p className="text-center text-xs text-vc-text-muted py-12">No episode details available.</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── HOST CONFIRM END SCREENING MODAL ── */}
+      {showEndScreeningConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
+          <div className="glass-panel p-6 rounded-[8px] max-w-sm w-full text-center border border-red-500/40 shadow-[0_20px_70px_rgba(0,0,0,0.9)] bg-[#0d0a0a]">
+            <span className="text-3xl mb-2 block">👑</span>
+            <h3 className="font-serif text-lg font-bold text-white mb-2">End Screening for All?</h3>
+            <p className="text-xs text-vc-text-muted mb-6 leading-relaxed">
+              As Host, ending this screening will automatically close the auditorium and return all joined friends to the lobby.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowEndScreeningConfirm(false)}
+                className="w-1/2 py-2.5 rounded-[3px] border border-white/10 text-xs font-mono text-white/70 hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEndScreening}
+                className="w-1/2 py-2.5 rounded-[3px] bg-red-600 hover:bg-red-500 text-white text-xs font-mono font-bold uppercase transition-colors"
+              >
+                End Screening
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SCREENING CONCLUDED (ALL LEAVE AUTOMATICALLY) ── */}
+      {isRoomEnded && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-lg animate-fade-in">
+          <div className="glass-panel p-8 rounded-[8px] max-w-md w-full text-center border border-vc-gold/40 shadow-[0_25px_90px_rgba(0,0,0,0.95)] bg-[#0a0a0c]">
+            <span className="text-4xl mb-3 block">🎬</span>
+            <h3 className="font-serif text-2xl font-bold text-vc-gold mb-2">Screening Concluded</h3>
+            <p className="text-xs text-white/80 mb-2 leading-relaxed">
+              {endedReason}
+            </p>
+            <p className="text-[11px] font-mono text-vc-text-muted mb-6">
+              Returning to VCinema lobby in {redirectCountdown ?? 3}s...
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full py-3 bg-vc-gold text-black text-xs font-mono font-bold uppercase rounded-[3px] hover:bg-vc-gold-bright transition-colors font-mono tracking-wider"
+            >
+              Return to Lobby Now &rarr;
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── KICKED OUT SCREEN ── */}
+      {isKicked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-lg animate-fade-in">
+          <div className="glass-panel p-8 rounded-[8px] max-w-md w-full text-center border border-red-500/50 shadow-[0_25px_90px_rgba(255,0,0,0.3)] bg-[#0f0707]">
+            <span className="text-4xl mb-3 block">🚫</span>
+            <h3 className="font-serif text-2xl font-bold text-red-400 mb-2">Removed from Screening</h3>
+            <p className="text-xs text-white/80 mb-2 leading-relaxed">
+              You were removed from this auditorium by the Host.
+            </p>
+            <p className="text-[11px] font-mono text-vc-text-muted mb-6">
+              Redirecting in {redirectCountdown ?? 3}s...
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full py-3 bg-red-600 hover:bg-red-500 text-white text-xs font-mono font-bold uppercase rounded-[3px] transition-colors font-mono tracking-wider"
+            >
+              Return to Home &rarr;
+            </button>
           </div>
         </div>
       )}

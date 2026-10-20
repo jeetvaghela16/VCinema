@@ -5,6 +5,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -310,9 +311,10 @@ export async function updateParticipantHeartbeat(
 }
 
 /**
- * Removes or updates participant presence when leaving
+ * Removes or updates participant presence when leaving.
+ * If the departing participant is the HOST, the entire screening is ended for everyone.
  */
-export async function leaveTheatreRoom(theatreId: string, userId: string): Promise<void> {
+export async function leaveTheatreRoom(theatreId: string, userId: string, isHost = false): Promise<void> {
   if (!isFirebaseConfigured) return;
 
   try {
@@ -321,6 +323,17 @@ export async function leaveTheatreRoom(theatreId: string, userId: string): Promi
       isOnline: false,
       lastSeen: Date.now(),
     });
+
+    if (isHost) {
+      // If host leaves, immediately terminate room projection for all guests
+      const roomDocRef = doc(db, 'theatres', theatreId);
+      await updateDoc(roomDocRef, {
+        isActive: false,
+        isEnded: true,
+        endedReason: 'The host has departed the screening session.',
+        updatedAt: Date.now(),
+      });
+    }
   } catch {
     // Graceful exit even if doc already removed
   }
@@ -467,4 +480,164 @@ export async function sendChatMessage(
   };
 
   await setDoc(msgRef, sanitizeFirestore(newMsg));
+}
+
+/**
+ * Host Authority: Ends the screening session for all viewers in the auditorium.
+ */
+export async function endScreening(
+  theatreId: string,
+  reason = 'The host has ended this screening session.'
+): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  try {
+    const roomDocRef = doc(db, 'theatres', theatreId);
+    await updateDoc(roomDocRef, {
+      isActive: false,
+      isEnded: true,
+      endedReason: reason,
+      updatedAt: Date.now(),
+    });
+  } catch (err) {
+    console.error('Error ending screening:', err);
+  }
+}
+
+/**
+ * Host Authority: Kicks a participant out of the screening room.
+ */
+export async function kickParticipant(
+  theatreId: string,
+  participantId: string,
+  participantName = 'Viewer'
+): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  try {
+    const participantRef = doc(db, 'theatres', theatreId, 'participants', participantId);
+    await updateDoc(participantRef, {
+      isKicked: true,
+      isOnline: false,
+      lastSeen: Date.now(),
+    });
+
+    // Announce kick in chat
+    const msgRef = doc(collection(db, 'theatres', theatreId, 'messages'));
+    await setDoc(
+      msgRef,
+      sanitizeFirestore({
+        id: msgRef.id,
+        theatreId,
+        userId: 'system',
+        userName: '🛡 Auditorium Security',
+        message: `${participantName} was ejected from the screening by the Host.`,
+        timestamp: 'Host Action',
+        createdAt: Date.now(),
+      })
+    );
+  } catch (err) {
+    console.error('Error kicking participant:', err);
+  }
+}
+
+/**
+ * Host Authority: Mutes or unmutes a participant from sending chat messages.
+ */
+export async function toggleMuteParticipant(
+  theatreId: string,
+  participantId: string,
+  isMuted: boolean,
+  participantName = 'Viewer'
+): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  try {
+    const participantRef = doc(db, 'theatres', theatreId, 'participants', participantId);
+    await updateDoc(participantRef, {
+      isMuted,
+      lastSeen: Date.now(),
+    });
+
+    // Announce mute in chat
+    const msgRef = doc(collection(db, 'theatres', theatreId, 'messages'));
+    await setDoc(
+      msgRef,
+      sanitizeFirestore({
+        id: msgRef.id,
+        theatreId,
+        userId: 'system',
+        userName: '🛡 Auditorium Security',
+        message: `${participantName} was ${isMuted ? 'muted' : 'unmuted'} by the Host.`,
+        timestamp: 'Host Action',
+        createdAt: Date.now(),
+      })
+    );
+  } catch (err) {
+    console.error('Error muting participant:', err);
+  }
+}
+
+/**
+ * Host Authority: Locks or unlocks the auditorium against new admissions.
+ */
+export async function toggleLockAuditorium(theatreId: string, isLocked: boolean): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  try {
+    const roomDocRef = doc(db, 'theatres', theatreId);
+    await updateDoc(roomDocRef, {
+      isLocked,
+      updatedAt: Date.now(),
+    });
+
+    const msgRef = doc(collection(db, 'theatres', theatreId, 'messages'));
+    await setDoc(
+      msgRef,
+      sanitizeFirestore({
+        id: msgRef.id,
+        theatreId,
+        userId: 'system',
+        userName: '🛡 Auditorium Security',
+        message: isLocked
+          ? 'Auditorium doors are now LOCKED by the Host. No new admissions allowed.'
+          : 'Auditorium doors are now OPEN.',
+        timestamp: 'Host Action',
+        createdAt: Date.now(),
+      })
+    );
+  } catch (err) {
+    console.error('Error locking auditorium:', err);
+  }
+}
+
+/**
+ * Host Authority: Clears auditorium chat messages.
+ */
+export async function clearChatMessages(theatreId: string): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  try {
+    const colRef = collection(db, 'theatres', theatreId, 'messages');
+    const snap = await getDocs(colRef);
+    const batchPromises = snap.docs.map((d) => deleteDoc(d.ref));
+    await Promise.all(batchPromises);
+
+    // Post fresh notification
+    const msgRef = doc(collection(db, 'theatres', theatreId, 'messages'));
+    await setDoc(
+      msgRef,
+      sanitizeFirestore({
+        id: msgRef.id,
+        theatreId,
+        userId: 'system',
+        userName: '🛡 Auditorium Security',
+        message: 'Chat history was cleared by the Host.',
+        timestamp: 'Host Action',
+        createdAt: Date.now(),
+      })
+    );
+  } catch (err) {
+    console.error('Error clearing chat:', err);
+  }
 }

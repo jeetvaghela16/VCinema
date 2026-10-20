@@ -32,6 +32,8 @@ export interface TheatreParticipant {
   isOnline: boolean;
   joinedAt: number;
   lastSeen: number; // epoch ms for heartbeat & stale detection
+  isKicked?: boolean; // Set by host to eject participant
+  isMuted?: boolean; // Set by host to mute chat
 }
 
 export interface TheatreChatMessage {
@@ -60,5 +62,8 @@ export interface LiveTheatreRoom {
   createdAt: number;
   updatedAt: number;
   isActive: boolean;
+  isEnded?: boolean; // True if host ended the screening
+  endedReason?: string; // Reason displayed to guests
+  isLocked?: boolean; // True if host locked room to prevent new entries
   selectedMovie?: Movie;
 }

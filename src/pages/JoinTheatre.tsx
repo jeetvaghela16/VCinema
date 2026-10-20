@@ -125,6 +125,12 @@ export default function JoinTheatre() {
         return;
       }
 
+      // Check if locked by host
+      if (room.isLocked) {
+        setErrorMessage('This auditorium is currently locked by the host to prevent mid-screening interruptions.');
+        return;
+      }
+
       // Check if password protected
       if (room.isPasswordProtected && room.password) {
         setPasswordRequired(true);
