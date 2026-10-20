@@ -481,6 +481,34 @@ export default function TheatreRoom() {
     }
   }, [room?.playback?.isPlaying]);
 
+  // Stable starting position when this presentation / server / episode is mounted
+  const streamStartTimeRef = useRef(0);
+
+  const playbackTmdbId = room?.playback?.tmdbId;
+  const playbackIsTv = room?.playback?.isTv ?? false;
+  const playbackSeason = room?.playback?.season ?? 1;
+  const playbackEpisode = room?.playback?.episode ?? 1;
+  const playbackVideoUrl = room?.playback?.currentMovieVideoUrl || '';
+
+  useEffect(() => {
+    if (room?.playback) {
+      streamStartTimeRef.current = Math.floor(calculateAuthoritativePosition(room.playback));
+    }
+  }, [playbackTmdbId, playbackSeason, playbackEpisode, theatreServer, theatreAudioLang, hardReloadCount]);
+
+  const embedStreamUrl = useMemo(() => {
+    if (!playbackTmdbId) return playbackVideoUrl;
+    return getEmbedStreamUrl(
+      playbackTmdbId,
+      playbackIsTv ? 'tv' : 'movie',
+      playbackSeason,
+      playbackEpisode,
+      theatreServer,
+      theatreAudioLang,
+      streamStartTimeRef.current
+    );
+  }, [playbackTmdbId, playbackIsTv, playbackSeason, playbackEpisode, theatreServer, theatreAudioLang, playbackVideoUrl, hardReloadCount]);
+
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#050504] text-vc-gold space-y-3">
@@ -542,28 +570,6 @@ export default function TheatreRoom() {
   };
   const duration = room.playback.duration || 8280;
   const progressPercent = Math.min(100, Math.max(0, (localTime / duration) * 100));
-
-  // Stable starting position when this presentation / server / episode is mounted
-  const streamStartTimeRef = useRef(0);
-
-  useEffect(() => {
-    if (room?.playback) {
-      streamStartTimeRef.current = Math.floor(calculateAuthoritativePosition(room.playback));
-    }
-  }, [activeTmdbId, currentSeason, currentEpisode, theatreServer, theatreAudioLang, hardReloadCount]);
-
-  const embedStreamUrl = useMemo(() => {
-    if (!activeTmdbId) return currentMovie.videoUrl || '';
-    return getEmbedStreamUrl(
-      activeTmdbId,
-      isTv ? 'tv' : 'movie',
-      currentSeason,
-      currentEpisode,
-      theatreServer,
-      theatreAudioLang,
-      streamStartTimeRef.current
-    );
-  }, [activeTmdbId, isTv, currentSeason, currentEpisode, theatreServer, theatreAudioLang, currentMovie.videoUrl, hardReloadCount]);
 
   return (
     <div className="fixed inset-0 bg-[#050504] flex flex-col overflow-hidden select-none" aria-label="VCinema Auditorium">
