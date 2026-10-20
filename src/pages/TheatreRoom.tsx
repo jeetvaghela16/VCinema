@@ -72,8 +72,6 @@ export default function TheatreRoom() {
 
   // Authoritative Iframe Real-Time Alignment State
   const [streamAnchorTime, setStreamAnchorTime] = useState<number>(0);
-  const [streamEpoch, setStreamEpoch] = useState<number>(0);
-  const [viewerControlsUnlocked, setViewerControlsUnlocked] = useState(false);
   const isLocalSeekingRef = useRef(false);
   const hostPausedFromPlayerRef = useRef(false);
   const hasInitializedAnchorRef = useRef(false);
@@ -186,7 +184,6 @@ export default function TheatreRoom() {
   const handleSelectEpisode = async (seasonNum: number, episodeNum: number, epName?: string) => {
     if (!isHost) return;
     setStreamAnchorTime(0);
-    setStreamEpoch((e) => e + 1);
     await changeEpisode(seasonNum, episodeNum);
     setShowEpisodeModal(false);
     await sendMessage(`Host selected S${seasonNum}:E${episodeNum}${epName ? ` "${epName}"` : ''}`);
@@ -196,7 +193,6 @@ export default function TheatreRoom() {
     if (!isHost) return;
     setTheatreServer(serverId);
     setStreamAnchorTime(localTime);
-    setStreamEpoch((e) => e + 1);
     await changeServer(serverId);
     const sName = STREAM_SERVERS.find((s) => s.id === serverId)?.name.replace(/Server \d+ /, '') || serverId;
     await sendMessage(`Host switched projection server to ${sName}`);
@@ -206,7 +202,6 @@ export default function TheatreRoom() {
     if (!isHost) return;
     setTheatreAudioLang(langId);
     setStreamAnchorTime(localTime);
-    setStreamEpoch((e) => e + 1);
     const langConfig = AUDIO_LANGUAGES.find((l) => l.id === langId);
     if (langConfig) {
       setTheatreServer(langConfig.recommendedServerId);
@@ -429,8 +424,7 @@ export default function TheatreRoom() {
     });
   };
 
-  // Intercept incoming player events (VidLink, PlayerJS, Plyr) on the Host
-  // When host pauses, plays, or seeks inside the player (Image 2), broadcast to room!
+  // Intercept incoming player events (strictly from trusted providers like vidlink.pro)
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent) => {
       if (!isHost) return;
@@ -447,19 +441,12 @@ export default function TheatreRoom() {
 
         if (!payload || typeof payload !== 'object') return;
 
-        let eventType = '';
-        let eventTime: number | null = null;
+        // ONLY accept VidLink PLAYER_EVENT from vidlink.pro (Never accept random ad tags or scraper scripts!)
+        const isFromVidLink = typeof event.origin === 'string' && event.origin.includes('vidlink.pro');
+        if (!isFromVidLink && payload.type !== 'PLAYER_EVENT') return;
 
-        if (payload.type === 'PLAYER_EVENT' && payload.data) {
-          eventType = payload.data.event;
-          if (typeof payload.data.currentTime === 'number') eventTime = payload.data.currentTime;
-        } else if (payload.context === 'player.js') {
-          eventType = payload.event;
-          if (typeof payload.time === 'number') eventTime = payload.time;
-        } else if (payload.event) {
-          eventType = payload.event;
-          if (typeof payload.currentTime === 'number') eventTime = payload.currentTime;
-        }
+        const eventType = payload.data?.event;
+        const eventTime = typeof payload.data?.currentTime === 'number' ? payload.data.currentTime : null;
 
         if (!eventType) return;
 
@@ -543,12 +530,11 @@ export default function TheatreRoom() {
 
       sendIframePlaybackCommand(room.playback.isPlaying ? 'seek' : 'pause', targetTime);
 
-      // Re-anchor iframe on seek or on resume
-      if (room.playback.isPlaying) {
+      // Re-anchor iframe on seek
+      if (versionChanged && room.playback.isPlaying) {
         const isLocalHostSeek = isLocalSeekingRef.current && isHost;
         if (!isLocalHostSeek) {
           setStreamAnchorTime(targetTime);
-          setStreamEpoch((e) => e + 1);
         }
       }
 
@@ -565,7 +551,7 @@ export default function TheatreRoom() {
     setLocalTime(hostTime);
     setHasJoinedPlayback(true);
     setStreamAnchorTime(hostTime);
-    setStreamEpoch((e) => e + 1);
+    setHardReloadCount((c) => c + 1);
     sendIframePlaybackCommand('play', hostTime);
     setSyncToast(`✓ Joined screening at ${formatTimecode(hostTime)}`);
     setTimeout(() => setSyncToast(null), 3000);
@@ -586,7 +572,7 @@ export default function TheatreRoom() {
 
     sendIframePlaybackCommand(room.playback.isPlaying ? 'seek' : 'pause', hostTime);
     setStreamAnchorTime(hostTime);
-    setStreamEpoch((e) => e + 1);
+    setHardReloadCount((c) => c + 1);
     setSyncToast(`⚡ Synced with Host (${formatTimecode(hostTime)})`);
     setTimeout(() => setSyncToast(null), 3000);
   };
@@ -930,35 +916,14 @@ export default function TheatreRoom() {
                 </div>
               ) : projectionMode === 'stream' && embedStreamUrl ? (
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
-                  {/* While paused: If guest (or host paused via UI), suspend iframe to eliminate background audio & rogue desync! */}
-                  {!room.playback.isPlaying && (!isHost || !hostPausedFromPlayerRef.current) ? (
-                    <div className="w-full h-full flex items-center justify-center bg-black relative">
-                      <img
-                        src={currentMovie.backdropUrl || currentMovie.posterUrl}
-                        alt={currentMovie.title}
-                        className="w-full h-full object-cover opacity-20 filter blur-md"
-                      />
-                      <div className="absolute inset-0 bg-radial-vignette" />
-                    </div>
-                  ) : (
-                    <iframe
-                      key={`${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}-${streamEpoch}-${hardReloadCount}`}
-                      src={embedStreamUrl}
-                      className="w-full h-full border-0"
-                      allowFullScreen
-                      allow="accelerometer; autoplay *; clipboard-write; encrypted-media *; gyroscope; picture-in-picture *; web-share"
-                      title={currentMovie.title}
-                    />
-                  )}
-
-                  {/* Protection shield for joined viewers so they don't accidentally click the player seekbar and desync */}
-                  {!isHost && room.playback.isPlaying && hasJoinedPlayback && !viewerControlsUnlocked && (
-                    <div
-                      className="absolute inset-0 z-10 cursor-pointer"
-                      onDoubleClick={handleToggleFullscreen}
-                      title="👑 Controlled by Host · Double click for fullscreen"
-                    />
-                  )}
+                  <iframe
+                    key={`${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}-${hardReloadCount}`}
+                    src={embedStreamUrl}
+                    className="w-full h-full border-0"
+                    allowFullScreen
+                    allow="accelerometer; autoplay *; clipboard-write; encrypted-media *; gyroscope; picture-in-picture *; web-share"
+                    title={currentMovie.title}
+                  />
                 </div>
               ) : currentMovie.posterUrl ? (
                 <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
@@ -1059,50 +1024,7 @@ export default function TheatreRoom() {
                 )}
               </div>
 
-              {/* ── INSTANT RESYNC & RELOAD BUTTONS (Non-host viewers) ── */}
-              {!isHost && room.playback.isPlaying && hasJoinedPlayback && (
-                <div className="absolute bottom-5 right-5 z-20 pointer-events-auto flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleManualResync}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] bg-black/85 hover:bg-black/95 border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold tracking-wide shadow-[0_4px_25px_rgba(0,0,0,0.8),0_0_15px_rgba(198,167,106,0.3)] backdrop-blur-md hover:border-vc-gold transition-all active:scale-95 group"
-                    title="Re-align timeline and player directly to host position"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="group-hover:text-vc-gold-bright">⚡ Sync with Host ({formatTimecode(localTime)})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewerControlsUnlocked((u) => !u)}
-                    className={cn(
-                      'px-2.5 py-1.5 rounded-[4px] border text-xs font-mono transition-all backdrop-blur-md',
-                      viewerControlsUnlocked
-                        ? 'bg-vc-gold text-black font-bold border-vc-gold shadow-[0_0_10px_rgba(198,167,106,0.4)]'
-                        : 'bg-black/85 hover:bg-black/95 border-white/20 text-white/70 hover:text-white'
-                    )}
-                    title={
-                      viewerControlsUnlocked
-                        ? 'Lock Player Controls (prevent accidental desync)'
-                        : 'Unlock Player Controls (to toggle CC / Subtitles or Settings)'
-                    }
-                  >
-                    {viewerControlsUnlocked ? '🔓 Controls Unlocked' : '🔒 CC / Settings'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHardReloadCount((c) => c + 1);
-                      setStreamEpoch((e) => e + 1);
-                      setSyncToast('↻ Reloading stream player...');
-                      setTimeout(() => setSyncToast(null), 3000);
-                    }}
-                    className="p-1.5 rounded-[4px] bg-black/85 hover:bg-black/95 border border-white/20 hover:border-vc-gold/60 text-white/60 hover:text-vc-gold text-xs font-mono transition-all backdrop-blur-md"
-                    title="Hard Reload Player"
-                  >
-                    ↻
-                  </button>
-                </div>
-              )}
+
             </div>
           </div>
 
@@ -1176,9 +1098,15 @@ export default function TheatreRoom() {
                     {formatTimecode(localTime)} / {formatTimecode(duration)}
                   </span>
                   {!isHost && (
-                    <span className="text-[9px] font-mono text-vc-gold/80 bg-vc-gold/10 px-1.5 py-0.5 rounded border border-vc-gold/20">
-                      👑 Host Synced
-                    </span>
+                    <button
+                      type="button"
+                      onClick={handleManualResync}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] bg-vc-gold/20 hover:bg-vc-gold/30 border border-vc-gold/60 text-vc-gold text-[10px] font-mono font-bold tracking-wider uppercase transition-all shadow-[0_0_10px_rgba(198,167,106,0.2)] active:scale-95"
+                      title="Click to sync timeline to host"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>⚡ Sync with Host</span>
+                    </button>
                   )}
                 </div>
               </div>
