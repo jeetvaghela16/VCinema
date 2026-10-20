@@ -41,6 +41,7 @@ export default function TheatreRoom() {
     play,
     pause,
     seek,
+    skip,
     changeMovie,
     changeEpisode,
     changeServer,
@@ -331,15 +332,52 @@ export default function TheatreRoom() {
     seek(targetSeconds);
   };
 
-  // Handle Host Toggle Play / Pause (Passes exact elapsed position)
-  const handleTogglePlayPause = () => {
+  // Handle Host Toggle Play / Pause (Passes exact elapsed position and notifies room)
+  const handleTogglePlayPause = async () => {
     if (!isHost || !room?.playback) return;
     if (room.playback.isPlaying) {
-      pause(localTime);
+      await pause(localTime);
+      await sendMessage(`Host paused projection at ${formatTimecode(localTime)}`);
     } else {
-      play(localTime);
+      await play(localTime);
+      await sendMessage(`Host resumed projection at ${formatTimecode(localTime)}`);
     }
   };
+
+  // Host Skip 10s Backward
+  const handleHostSkipBackward10 = async () => {
+    if (!isHost || !room?.playback) return;
+    const newTime = Math.max(0, localTime - 10);
+    setLocalTime(newTime);
+    await skip(-10, localTime);
+    await sendMessage(`Host skipped backward -10s (${formatTimecode(newTime)})`);
+  };
+
+  // Host Skip 10s Forward
+  const handleHostSkipForward10 = async () => {
+    if (!isHost || !room?.playback) return;
+    const maxDur = room.playback.duration || 8280;
+    const newTime = Math.min(maxDur, localTime + 10);
+    setLocalTime(newTime);
+    await skip(10, localTime);
+    await sendMessage(`Host skipped forward +10s (${formatTimecode(newTime)})`);
+  };
+
+  // PostMessage pause to iframes when paused
+  useEffect(() => {
+    if (!room?.playback) return;
+    if (!room.playback.isPlaying) {
+      const iframes = screenRef.current?.querySelectorAll('iframe');
+      iframes?.forEach((iframe) => {
+        try {
+          iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+          iframe.contentWindow?.postMessage({ type: 'pause' }, '*');
+        } catch {
+          // Cross-origin safe
+        }
+      });
+    }
+  }, [room?.playback?.isPlaying]);
 
   if (isLoading) {
     return (
@@ -523,6 +561,58 @@ export default function TheatreRoom() {
               className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)]"
               aria-label="Cinema screen"
             >
+              {/* ── AUTHORITATIVE CINEMA PROJECTION PAUSE CURTAIN ── */}
+              {!room.playback.isPlaying && (
+                <div className="absolute inset-0 z-30 bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none">
+                  <div className="w-16 h-16 rounded-full bg-vc-gold/15 border border-vc-gold/40 flex items-center justify-center text-vc-gold text-2xl font-mono mb-3 shadow-[0_0_30px_rgba(198,167,106,0.3)] animate-pulse">
+                    ❚❚
+                  </div>
+                  <span className="text-[10px] font-mono tracking-[0.25em] text-vc-gold uppercase mb-1">
+                    Auditorium Projection Suspended
+                  </span>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-white mb-2">
+                    Screening Paused by Host
+                  </h3>
+                  <p className="text-xs text-vc-text-muted max-w-md mb-5 leading-relaxed">
+                    {isHost
+                      ? 'You have paused projection for everyone in the auditorium. Use the host controls below to resume or skip.'
+                      : `The host (${room.hostName}) has paused the auditorium projection. Playback is paused on all screens.`}
+                  </p>
+
+                  {isHost ? (
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                      <button
+                        onClick={handleTogglePlayPause}
+                        className="px-6 py-2.5 rounded-[4px] bg-vc-gold text-black text-xs font-mono font-bold uppercase tracking-wider hover:bg-vc-gold-bright transition-all shadow-[0_0_20px_rgba(198,167,106,0.4)] active:scale-95 flex items-center gap-2"
+                      >
+                        <span>▶ Resume Screening for All</span>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleHostSkipBackward10}
+                          className="px-3 py-2 rounded-[4px] bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-mono transition-colors flex items-center gap-1"
+                          title="Skip Backward 10 Seconds"
+                        >
+                          <span>⏪ -10s</span>
+                        </button>
+                        <button
+                          onClick={handleHostSkipForward10}
+                          className="px-3 py-2 rounded-[4px] bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-mono transition-colors flex items-center gap-1"
+                          title="Skip Forward 10 Seconds"
+                        >
+                          <span>+10s ⏩</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-[4px] bg-white/5 border border-white/10 text-white/80 text-xs font-mono">
+                      <span className="w-2.5 h-2.5 rounded-full bg-vc-gold animate-ping" />
+                      <span>🔒 Paused by Host &middot; Standing by to resume synchronously...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Dynamic Film Video / Trailer / Stream / Poster Screen */}
               {projectionMode === 'trailer' && (currentMovie.trailerKey || room.playback.currentMovieTrailerKey) ? (
                 <div className="absolute inset-0 z-0">
@@ -658,39 +748,79 @@ export default function TheatreRoom() {
           {/* ── AUDITORIUM PROJECTION CONSOLE & CONTROLS ── */}
           <div className="flex-shrink-0 px-3 md:px-8 pb-3">
             <div className="max-w-5xl mx-auto glass-panel rounded-[4px] px-4 md:px-6 py-3 border border-white/5 space-y-2.5">
-              {/* Native HTML5 Video Progress Slider (ONLY when playing actual direct HTML5 video) */}
-              {projectionMode === 'video' && (
-                <div className="flex items-center gap-3 pb-2 border-b border-white/5">
+              {/* ── MASTER SYNCHRONIZED PLAYBACK CONSOLE (Host Controlled) ── */}
+              <div className="flex items-center gap-3 pb-2.5 border-b border-white/5 flex-wrap sm:flex-nowrap">
+                {/* Play / Pause Toggle Button */}
+                {isHost ? (
                   <button
                     onClick={handleTogglePlayPause}
-                    disabled={!isHost}
-                    className="w-7 h-7 flex items-center justify-center rounded-full bg-vc-gold text-black hover:bg-vc-gold-bright transition-colors text-xs font-bold flex-shrink-0"
-                    title={isHost ? (room.playback.isPlaying ? 'Pause' : 'Play') : 'Playback host controlled'}
+                    className="h-8 px-3.5 flex items-center gap-1.5 rounded-[3px] bg-vc-gold text-black hover:bg-vc-gold-bright transition-all text-xs font-mono font-bold uppercase shadow-[0_0_12px_rgba(198,167,106,0.3)] active:scale-95 flex-shrink-0"
+                    title={room.playback.isPlaying ? 'Pause projection for all viewers' : 'Resume projection for all viewers'}
                   >
-                    {room.playback.isPlaying ? '❚❚' : '▶'}
+                    <span>{room.playback.isPlaying ? '❚❚' : '▶'}</span>
+                    <span className="hidden xs:inline">{room.playback.isPlaying ? 'Pause' : 'Play'}</span>
                   </button>
+                ) : (
                   <div
-                    onClick={handleSeekClick}
-                    className={cn(
-                      'flex-1 h-2 rounded-full overflow-hidden bg-white/10 relative group transition-all',
-                      isHost ? 'cursor-pointer hover:h-2.5' : 'cursor-default'
-                    )}
-                    role="progressbar"
-                    aria-valuenow={progressPercent}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    title={isHost ? 'Click to seek projection' : `Playback controlled by host (${room.hostName})`}
+                    className="h-8 px-3 flex items-center gap-1.5 rounded-[3px] bg-white/5 border border-white/10 text-white/40 text-[11px] font-mono flex-shrink-0 cursor-not-allowed"
+                    title={`Playback controlled by host (${room.hostName})`}
                   >
-                    <div
-                      className="h-full bg-vc-gold rounded-full relative transition-all duration-200"
-                      style={{ width: `${progressPercent}%` }}
-                    />
+                    <span>{room.playback.isPlaying ? '▶' : '❚❚'}</span>
+                    <span>{room.playback.isPlaying ? 'Live' : 'Paused'}</span>
                   </div>
-                  <span className="text-[10px] font-mono text-white/50 tracking-wider flex-shrink-0">
+                )}
+
+                {/* Host Skip Controls (-10s / +10s) */}
+                {isHost && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={handleHostSkipBackward10}
+                      className="h-8 px-2.5 rounded-[3px] bg-white/5 hover:bg-white/15 border border-white/10 text-white/80 hover:text-white text-xs font-mono transition-colors"
+                      title="Host: Skip Backward 10 Seconds"
+                    >
+                      ⏪ -10s
+                    </button>
+                    <button
+                      onClick={handleHostSkipForward10}
+                      className="h-8 px-2.5 rounded-[3px] bg-white/5 hover:bg-white/15 border border-white/10 text-white/80 hover:text-white text-xs font-mono transition-colors"
+                      title="Host: Skip Forward 10 Seconds"
+                    >
+                      +10s ⏩
+                    </button>
+                  </div>
+                )}
+
+                {/* Authoritative Progress / Seek Slider */}
+                <div
+                  onClick={handleSeekClick}
+                  className={cn(
+                    'flex-1 min-w-[120px] h-2 rounded-full overflow-hidden bg-white/10 relative group transition-all',
+                    isHost ? 'cursor-pointer hover:h-2.5' : 'cursor-default'
+                  )}
+                  role="progressbar"
+                  aria-valuenow={progressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  title={isHost ? 'Click to seek projection' : `Playback controlled by host (${room.hostName})`}
+                >
+                  <div
+                    className="h-full bg-vc-gold rounded-full relative transition-all duration-200"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+
+                {/* Timecode & Authority Badge */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10px] font-mono text-white/60 tracking-wider">
                     {formatTimecode(localTime)} / {formatTimecode(duration)}
                   </span>
+                  {!isHost && (
+                    <span className="text-[9px] font-mono text-vc-gold/80 bg-vc-gold/10 px-1.5 py-0.5 rounded border border-vc-gold/20">
+                      👑 Host Synced
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* ── ROW 1: Broadcast Status, TV Episode Switcher & Top Actions ── */}
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1603,9 +1733,20 @@ export default function TheatreRoom() {
                       </span>
                     </button>
                   ))
-                : (
-                    <span className="text-xs font-mono text-vc-gold">Season 1</span>
-                  )}
+                : [1, 2, 3, 4].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleDrawerSeasonChange(s)}
+                      className={cn(
+                        'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap',
+                        drawerSeason === s
+                          ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
+                          : 'bg-white/5 border border-white/10 text-white/70 hover:text-white'
+                      )}
+                    >
+                      Season {s}
+                    </button>
+                  ))}
             </div>
 
             {/* Episode Cards Grid */}
@@ -1682,7 +1823,41 @@ export default function TheatreRoom() {
                   })}
                 </div>
               ) : (
-                <p className="text-center text-xs text-vc-text-muted py-12">No episode details available.</p>
+                <div className="space-y-4">
+                  <div className="text-center py-2 text-xs font-mono text-vc-gold">
+                    Season {drawerSeason} Episode Index
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((epNum) => {
+                      const isCurrentEp = currentSeason === drawerSeason && currentEpisode === epNum;
+                      return (
+                        <button
+                          key={epNum}
+                          disabled={!isHost}
+                          onClick={() => isHost && handleSelectEpisode(drawerSeason, epNum)}
+                          className={cn(
+                            'p-3.5 rounded-[3px] border text-center transition-all flex flex-col items-center justify-center gap-1',
+                            isCurrentEp
+                              ? 'border-vc-gold bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.3)]'
+                              : isHost
+                              ? 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:border-vc-gold/50 cursor-pointer'
+                              : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
+                          )}
+                        >
+                          <span className="text-[9px] font-mono opacity-70">EPISODE</span>
+                          <span className="text-base font-bold font-mono">{epNum}</span>
+                          {isCurrentEp ? (
+                            <span className="text-[8px] uppercase tracking-wider font-bold">▶ Screening</span>
+                          ) : (
+                            <span className="text-[8px] font-mono opacity-60">
+                              {isHost ? 'Click to Screen' : 'Host Controlled'}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           </div>

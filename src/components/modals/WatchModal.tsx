@@ -35,7 +35,14 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
   const [episodesList, setEpisodesList] = useState<TmdbEpisode[]>([]);
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
 
-  const isTv = Boolean(item && ('seasons' in item || seriesDetails !== null));
+  const isTv = Boolean(
+    item &&
+      ('seasons' in item ||
+        (item as any).isTv ||
+        item.id.startsWith('tmdb-tv-') ||
+        item.genre?.toLowerCase().includes('series') ||
+        seriesDetails !== null)
+  );
   const tmdbId = item?.tmdbId;
 
   // Reset tab and load trailer / series details on item change
@@ -190,6 +197,19 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {isTv && (
+              <button
+                type="button"
+                onClick={() => {
+                  const epSection = document.getElementById('watch-modal-episodes-section');
+                  epSection?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-[3px] bg-vc-gold/15 hover:bg-vc-gold/25 border border-vc-gold/40 text-vc-gold text-xs font-mono transition-all"
+                title="Jump to Season & Episode list"
+              >
+                <span>📺 Episodes ({totalEpisodes})</span>
+              </button>
+            )}
             <button
               onClick={handleStartWatchParty}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[3px] bg-vc-gold text-black text-xs font-semibold font-mono uppercase tracking-wider hover:bg-vc-gold-bright transition-all shadow-[0_0_15px_rgba(198,167,106,0.3)] active:scale-95"
@@ -207,47 +227,49 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
           </div>
         </div>
 
-        {/* ── Video Player Screen (16:9 Aspect Ratio) ── */}
-        <div className="relative aspect-video w-full bg-black flex-shrink-0 overflow-hidden shadow-2xl">
-          {activeTab === 'stream' ? (
-            currentStreamUrl ? (
+        {/* ── Video Player Screen (Proportionally Constrained so Controls & Episodes are always visible) ── */}
+        <div className="relative w-full bg-black flex-shrink-0 overflow-hidden shadow-2xl flex items-center justify-center border-b border-white/10">
+          <div className="w-full aspect-video max-h-[46vh] sm:max-h-[50vh] flex items-center justify-center bg-[#050504]">
+            {activeTab === 'stream' ? (
+              currentStreamUrl ? (
+                <iframe
+                  key={`${currentStreamUrl}-${selectedServer}-${selectedAudioLang}-${selectedSeason}-${selectedEpisode}`}
+                  src={currentStreamUrl}
+                  className="w-full h-full border-0"
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  title={`${item.title} Player`}
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-vc-text-muted p-6 text-center">
+                  <p className="text-sm">Video stream not available for this title.</p>
+                  {trailerKey && (
+                    <button
+                      onClick={() => setActiveTab('trailer')}
+                      className="mt-3 px-4 py-1.5 bg-vc-gold text-black text-xs font-mono font-semibold rounded-[3px]"
+                    >
+                      Watch Official Trailer Instead
+                    </button>
+                  )}
+                </div>
+              )
+            ) : trailerKey ? (
               <iframe
-                key={`${currentStreamUrl}-${selectedServer}-${selectedAudioLang}-${selectedSeason}-${selectedEpisode}`}
-                src={currentStreamUrl}
+                key={`trailer-${trailerKey}`}
+                src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&modestbranding=1&rel=0`}
                 className="w-full h-full border-0"
                 allowFullScreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                title={`${item.title} Player`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                title={`${item.title} Trailer`}
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-vc-text-muted p-6 text-center">
-                <p className="text-sm">Video stream not available for this title.</p>
-                {trailerKey && (
-                  <button
-                    onClick={() => setActiveTab('trailer')}
-                    className="mt-3 px-4 py-1.5 bg-vc-gold text-black text-xs font-mono font-semibold rounded-[3px]"
-                  >
-                    Watch Official Trailer Instead
-                  </button>
-                )}
+                <p className="text-sm">
+                  {isLoadingTrailer ? 'Locating official trailer...' : 'No trailer found for this title.'}
+                </p>
               </div>
-            )
-          ) : trailerKey ? (
-            <iframe
-              key={`trailer-${trailerKey}`}
-              src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&modestbranding=1&rel=0`}
-              className="w-full h-full border-0"
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              title={`${item.title} Trailer`}
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-vc-text-muted p-6 text-center">
-              <p className="text-sm">
-                {isLoadingTrailer ? 'Locating official trailer...' : 'No trailer found for this title.'}
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* ── Scrollable Controls, Server Deck & OTT Episode Selector ── */}
@@ -349,6 +371,26 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
             </div>
           </div>
 
+          {/* Hindi Dub Tip Banner */}
+          {selectedAudioLang === 'hindi' && activeTab === 'stream' && (
+            <div className="px-4 sm:px-6 py-2 bg-vc-gold/10 border-b border-vc-gold/20 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-vc-gold">
+              <div className="flex items-center gap-2">
+                <span>🎧</span>
+                <span>
+                  <strong>Hindi Dub Active:</strong> Recommended on <strong>Server 4 (MultiEmbed)</strong> & <strong>Server 2 (Nxsha)</strong>. If English plays by default, click the ⚙ Gear / Audio icon in the video player or click Server 4.
+                </span>
+              </div>
+              {selectedServer !== 'multiembed' && (
+                <button
+                  onClick={() => setSelectedServer('multiembed')}
+                  className="px-2 py-0.5 rounded bg-vc-gold text-black text-[10px] font-bold uppercase hover:bg-vc-gold-bright flex-shrink-0 transition-colors"
+                >
+                  Switch to Server 4 &rarr;
+                </button>
+              )}
+            </div>
+          )}
+
           {/* ── BAR 3: Quick Episode Nav (For Web Series) ── */}
           {isTv && activeTab === 'stream' && (
             <div className="px-4 sm:px-6 py-2.5 bg-vc-gold/[0.03] flex items-center justify-between flex-wrap gap-2">
@@ -386,7 +428,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
 
           {/* ── OTT SEASONS & EPISODES BROWSER (Real OTT Grid like AlmostOTT / Netflix) ── */}
           {isTv && activeTab === 'stream' && (
-            <div className="px-4 sm:px-6 py-4 space-y-4">
+            <div id="watch-modal-episodes-section" className="px-4 sm:px-6 py-4 space-y-4">
               {/* Header with Season Selector Tabs */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
                 <div>

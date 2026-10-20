@@ -402,7 +402,7 @@ export const AUDIO_LANGUAGES: AudioTrackOption[] = [
     glyph: 'हि',
     badge: 'Hindi Dub',
     description: 'Hindi voice-over audio track (Bollywood, Hollywood & International dubbed)',
-    recommendedServerId: 'nxsha',
+    recommendedServerId: 'multiembed',
   },
   {
     id: 'multi',
@@ -475,17 +475,15 @@ export const STREAM_SERVERS: StreamServer[] = [
       isTv ? `https://bingr.one/watch/tv/${id}/${s}/${e}` : `https://bingr.one/watch/movie/${id}`,
   },
   {
-    id: 'zxcstream',
-    name: 'Server 4 (ZXC Multi-Dub)',
-    badge: 'Selectable Dub',
-    category: 'global',
-    audioSupport: 'Direct language query dubbing (Hindi, Spanish, French, German, English)',
-    getUrl: (id, isTv, s = 1, e = 1, lang = 'hi') => {
-      const dubCode = lang === 'hindi' ? 'hi' : lang === 'spanish' ? 'es' : lang === 'french' ? 'fr' : lang === 'japanese' ? 'ja' : 'en';
-      return isTv
-        ? `https://zxcstream.cc/player/tv/${id}/${s}/${e}?dubLang=${dubCode}`
-        : `https://zxcstream.cc/player/movie/${id}?dubLang=${dubCode}`;
-    },
+    id: 'multiembed',
+    name: 'Server 4 (MultiEmbed Hindi/Dual)',
+    badge: 'हिन्दी Dubbed',
+    category: 'hindi',
+    audioSupport: 'Specialized Hindi Dubbed and Multi-Audio player with regional audio tracks',
+    getUrl: (id, isTv, s = 1, e = 1) =>
+      isTv
+        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+        : `https://multiembed.mov/?video_id=${id}&tmdb=1`,
   },
   {
     id: 'vidlink',

@@ -172,6 +172,25 @@ export function useTheatre(theatreId: string | undefined) {
     [theatreId, isHost]
   );
 
+  // Playback Control: Skip by delta seconds (+10s, -10s)
+  const skip = useCallback(
+    async (offsetSeconds: number, currentPosition?: number) => {
+      if (!theatreId || !isHost) return;
+      const basePos =
+        currentPosition !== undefined
+          ? currentPosition
+          : roomRef.current?.playback?.currentTime ?? 0;
+      const duration = roomRef.current?.playback?.duration || 8280;
+      const targetPos = Math.max(0, Math.min(duration, basePos + offsetSeconds));
+
+      await updatePlayback(theatreId, {
+        currentTime: targetPos,
+        lastUpdated: Date.now(),
+      });
+    },
+    [theatreId, isHost]
+  );
+
   // Change Movie
   const changeMovie = useCallback(
     async (
@@ -333,6 +352,7 @@ export function useTheatre(theatreId: string | undefined) {
     play,
     pause,
     seek,
+    skip,
     changeMovie,
     changeEpisode,
     changeServer,
