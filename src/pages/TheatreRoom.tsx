@@ -68,6 +68,15 @@ export default function TheatreRoom() {
   const [hardReloadCount, setHardReloadCount] = useState(0);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const prevVersionRef = useRef<number | null>(null);
+  const prevIsPlayingRef = useRef<boolean | null>(null);
+
+  // Authoritative Iframe Real-Time Alignment State
+  const [streamAnchorTime, setStreamAnchorTime] = useState<number>(0);
+  const [streamEpoch, setStreamEpoch] = useState<number>(0);
+  const [viewerControlsUnlocked, setViewerControlsUnlocked] = useState(false);
+  const isLocalSeekingRef = useRef(false);
+  const hostPausedFromPlayerRef = useRef(false);
+  const hasInitializedAnchorRef = useRef(false);
 
   useEffect(() => {
     if (isHost) setHasJoinedPlayback(true);
@@ -176,6 +185,8 @@ export default function TheatreRoom() {
 
   const handleSelectEpisode = async (seasonNum: number, episodeNum: number, epName?: string) => {
     if (!isHost) return;
+    setStreamAnchorTime(0);
+    setStreamEpoch((e) => e + 1);
     await changeEpisode(seasonNum, episodeNum);
     setShowEpisodeModal(false);
     await sendMessage(`Host selected S${seasonNum}:E${episodeNum}${epName ? ` "${epName}"` : ''}`);
@@ -184,6 +195,8 @@ export default function TheatreRoom() {
   const handleSelectServer = async (serverId: string) => {
     if (!isHost) return;
     setTheatreServer(serverId);
+    setStreamAnchorTime(localTime);
+    setStreamEpoch((e) => e + 1);
     await changeServer(serverId);
     const sName = STREAM_SERVERS.find((s) => s.id === serverId)?.name.replace(/Server \d+ /, '') || serverId;
     await sendMessage(`Host switched projection server to ${sName}`);
@@ -192,6 +205,8 @@ export default function TheatreRoom() {
   const handleSelectDub = async (langId: string) => {
     if (!isHost) return;
     setTheatreAudioLang(langId);
+    setStreamAnchorTime(localTime);
+    setStreamEpoch((e) => e + 1);
     const langConfig = AUDIO_LANGUAGES.find((l) => l.id === langId);
     if (langConfig) {
       setTheatreServer(langConfig.recommendedServerId);
@@ -339,12 +354,14 @@ export default function TheatreRoom() {
     const clickX = e.clientX - rect.left;
     const percent = Math.max(0, Math.min(1, clickX / rect.width));
     const targetSeconds = Math.round(percent * room.playback.duration);
+    isLocalSeekingRef.current = false;
     seek(targetSeconds);
   };
 
   // Handle Host Toggle Play / Pause (Passes exact elapsed position and notifies room)
   const handleTogglePlayPause = async () => {
     if (!isHost || !room?.playback) return;
+    hostPausedFromPlayerRef.current = false;
     if (room.playback.isPlaying) {
       await pause(localTime);
       await sendMessage(`Host paused projection at ${formatTimecode(localTime)}`);
@@ -357,6 +374,7 @@ export default function TheatreRoom() {
   // Host Skip 10s Backward
   const handleHostSkipBackward10 = async () => {
     if (!isHost || !room?.playback) return;
+    isLocalSeekingRef.current = false;
     const newTime = Math.max(0, localTime - 10);
     setLocalTime(newTime);
     await skip(-10, localTime);
@@ -366,6 +384,7 @@ export default function TheatreRoom() {
   // Host Skip 10s Forward
   const handleHostSkipForward10 = async () => {
     if (!isHost || !room?.playback) return;
+    isLocalSeekingRef.current = false;
     const maxDur = room.playback.duration || 8280;
     const newTime = Math.min(maxDur, localTime + 10);
     setLocalTime(newTime);
@@ -400,7 +419,6 @@ export default function TheatreRoom() {
           win.postMessage(JSON.stringify({ method: 'seek', value: sec }), '*');
           win.postMessage(JSON.stringify({ event: 'command', command: 'setCurrentTime', value: sec }), '*');
           win.postMessage(JSON.stringify({ context: 'player.js', version: '0.0.11', event: 'command', command: 'setCurrentTime', value: sec }), '*');
-          // Resume play after seek
           win.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
           win.postMessage(JSON.stringify({ type: 'play' }), '*');
           win.postMessage(JSON.stringify({ event: 'command', command: 'play' }), '*');
@@ -411,17 +429,106 @@ export default function TheatreRoom() {
     });
   };
 
-  // Synchronize iframe on authoritative host seek/skip/resume events without reloading
+  // Intercept incoming player events (VidLink, PlayerJS, Plyr) on the Host
+  // When host pauses, plays, or seeks inside the player (Image 2), broadcast to room!
+  useEffect(() => {
+    const handleWindowMessage = (event: MessageEvent) => {
+      if (!isHost) return;
+
+      try {
+        let payload = event.data;
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            return;
+          }
+        }
+
+        if (!payload || typeof payload !== 'object') return;
+
+        let eventType = '';
+        let eventTime: number | null = null;
+
+        if (payload.type === 'PLAYER_EVENT' && payload.data) {
+          eventType = payload.data.event;
+          if (typeof payload.data.currentTime === 'number') eventTime = payload.data.currentTime;
+        } else if (payload.context === 'player.js') {
+          eventType = payload.event;
+          if (typeof payload.time === 'number') eventTime = payload.time;
+        } else if (payload.event) {
+          eventType = payload.event;
+          if (typeof payload.currentTime === 'number') eventTime = payload.currentTime;
+        }
+
+        if (!eventType) return;
+
+        if (eventType === 'pause') {
+          hostPausedFromPlayerRef.current = true;
+          const pos = eventTime !== null ? Math.floor(eventTime) : localTimeRef.current;
+          if (room?.playback?.isPlaying) {
+            pause(pos);
+            sendMessage(`Host paused projection at ${formatTimecode(pos)}`);
+          }
+        } else if (eventType === 'play') {
+          hostPausedFromPlayerRef.current = false;
+          const pos = eventTime !== null ? Math.floor(eventTime) : localTimeRef.current;
+          if (!room?.playback?.isPlaying) {
+            play(pos);
+            sendMessage(`Host resumed projection at ${formatTimecode(pos)}`);
+          }
+        } else if (eventType === 'seeked' && eventTime !== null) {
+          const seekPos = Math.floor(eventTime);
+          if (Math.abs(seekPos - localTimeRef.current) > 2) {
+            isLocalSeekingRef.current = true;
+            seek(seekPos);
+            sendMessage(`Host scrubbed stream to ${formatTimecode(seekPos)}`);
+            setTimeout(() => {
+              isLocalSeekingRef.current = false;
+            }, 1500);
+          }
+        } else if (eventType === 'timeupdate' && eventTime !== null) {
+          const cur = Math.floor(eventTime);
+          if (Math.abs(cur - localTimeRef.current) > 2) {
+            setLocalTime(cur);
+          }
+        }
+      } catch {
+        // Ignore cross-origin non-JSON messages
+      }
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+    return () => window.removeEventListener('message', handleWindowMessage);
+  }, [isHost, room?.playback?.isPlaying, pause, play, seek, sendMessage]);
+
+  // Initial anchor position setup when room first arrives
+  useEffect(() => {
+    if (room?.playback && !hasInitializedAnchorRef.current) {
+      hasInitializedAnchorRef.current = true;
+      const initialPos = Math.floor(calculateAuthoritativePosition(room.playback));
+      setStreamAnchorTime(initialPos);
+      setLocalTime(initialPos);
+    }
+  }, [room?.playback]);
+
+  // Synchronize iframe on authoritative host seek/skip/resume events
   useEffect(() => {
     if (!room?.playback) return;
 
     if (prevVersionRef.current === null) {
       prevVersionRef.current = room.playback.version || 0;
+      prevIsPlayingRef.current = room.playback.isPlaying;
       return;
     }
 
-    if (room.playback.version !== prevVersionRef.current) {
-      prevVersionRef.current = room.playback.version;
+    const versionChanged = room.playback.version !== prevVersionRef.current;
+    const isPlayingChanged = room.playback.isPlaying !== prevIsPlayingRef.current;
+
+    prevVersionRef.current = room.playback.version;
+    prevIsPlayingRef.current = room.playback.isPlaying;
+
+    if (versionChanged || isPlayingChanged) {
       const targetTime = Math.floor(calculateAuthoritativePosition(room.playback));
       setLocalTime(targetTime);
 
@@ -436,7 +543,16 @@ export default function TheatreRoom() {
 
       sendIframePlaybackCommand(room.playback.isPlaying ? 'seek' : 'pause', targetTime);
 
-      if (!isHost) {
+      // Re-anchor iframe on seek or on resume
+      if (room.playback.isPlaying) {
+        const isLocalHostSeek = isLocalSeekingRef.current && isHost;
+        if (!isLocalHostSeek) {
+          setStreamAnchorTime(targetTime);
+          setStreamEpoch((e) => e + 1);
+        }
+      }
+
+      if (!isHost && versionChanged) {
         setSyncToast(`Host seeked · Synced at ${formatTimecode(targetTime)}`);
         setTimeout(() => setSyncToast(null), 3000);
       }
@@ -448,12 +564,14 @@ export default function TheatreRoom() {
     const hostTime = room?.playback ? Math.floor(calculateAuthoritativePosition(room.playback)) : Math.floor(localTime);
     setLocalTime(hostTime);
     setHasJoinedPlayback(true);
+    setStreamAnchorTime(hostTime);
+    setStreamEpoch((e) => e + 1);
     sendIframePlaybackCommand('play', hostTime);
     setSyncToast(`✓ Joined screening at ${formatTimecode(hostTime)}`);
     setTimeout(() => setSyncToast(null), 3000);
   };
 
-  // Handle Manual Resync with Host (Non-destructive: keeps video running without stopping)
+  // Handle Manual Resync with Host (Re-anchors iframe to exact current host position)
   const handleManualResync = () => {
     if (!room?.playback) return;
     const hostTime = Math.floor(calculateAuthoritativePosition(room.playback));
@@ -467,6 +585,8 @@ export default function TheatreRoom() {
     }
 
     sendIframePlaybackCommand(room.playback.isPlaying ? 'seek' : 'pause', hostTime);
+    setStreamAnchorTime(hostTime);
+    setStreamEpoch((e) => e + 1);
     setSyncToast(`⚡ Synced with Host (${formatTimecode(hostTime)})`);
     setTimeout(() => setSyncToast(null), 3000);
   };
@@ -481,20 +601,11 @@ export default function TheatreRoom() {
     }
   }, [room?.playback?.isPlaying]);
 
-  // Stable starting position when this presentation / server / episode is mounted
-  const streamStartTimeRef = useRef(0);
-
   const playbackTmdbId = room?.playback?.tmdbId;
   const playbackIsTv = room?.playback?.isTv ?? false;
   const playbackSeason = room?.playback?.season ?? 1;
   const playbackEpisode = room?.playback?.episode ?? 1;
   const playbackVideoUrl = room?.playback?.currentMovieVideoUrl || '';
-
-  useEffect(() => {
-    if (room?.playback) {
-      streamStartTimeRef.current = Math.floor(calculateAuthoritativePosition(room.playback));
-    }
-  }, [playbackTmdbId, playbackSeason, playbackEpisode, theatreServer, theatreAudioLang, hardReloadCount]);
 
   const embedStreamUrl = useMemo(() => {
     if (!playbackTmdbId) return playbackVideoUrl;
@@ -505,9 +616,19 @@ export default function TheatreRoom() {
       playbackEpisode,
       theatreServer,
       theatreAudioLang,
-      streamStartTimeRef.current
+      streamAnchorTime
     );
-  }, [playbackTmdbId, playbackIsTv, playbackSeason, playbackEpisode, theatreServer, theatreAudioLang, playbackVideoUrl, hardReloadCount]);
+  }, [
+    playbackTmdbId,
+    playbackIsTv,
+    playbackSeason,
+    playbackEpisode,
+    theatreServer,
+    theatreAudioLang,
+    playbackVideoUrl,
+    streamAnchorTime,
+    hardReloadCount,
+  ]);
 
   if (isLoading) {
     return (
@@ -798,14 +919,35 @@ export default function TheatreRoom() {
                 </div>
               ) : projectionMode === 'stream' && embedStreamUrl ? (
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
-                  <iframe
-                    key={`${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}-${hardReloadCount}`}
-                    src={embedStreamUrl}
-                    className="w-full h-full border-0"
-                    allowFullScreen
-                    allow="accelerometer; autoplay *; clipboard-write; encrypted-media *; gyroscope; picture-in-picture *; web-share"
-                    title={currentMovie.title}
-                  />
+                  {/* While paused: If guest (or host paused via UI), suspend iframe to eliminate background audio & rogue desync! */}
+                  {!room.playback.isPlaying && (!isHost || !hostPausedFromPlayerRef.current) ? (
+                    <div className="w-full h-full flex items-center justify-center bg-black relative">
+                      <img
+                        src={currentMovie.backdropUrl || currentMovie.posterUrl}
+                        alt={currentMovie.title}
+                        className="w-full h-full object-cover opacity-20 filter blur-md"
+                      />
+                      <div className="absolute inset-0 bg-radial-vignette" />
+                    </div>
+                  ) : (
+                    <iframe
+                      key={`${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${currentSeason}-${currentEpisode}-${streamEpoch}-${hardReloadCount}`}
+                      src={embedStreamUrl}
+                      className="w-full h-full border-0"
+                      allowFullScreen
+                      allow="accelerometer; autoplay *; clipboard-write; encrypted-media *; gyroscope; picture-in-picture *; web-share"
+                      title={currentMovie.title}
+                    />
+                  )}
+
+                  {/* Protection shield for joined viewers so they don't accidentally click the player seekbar and desync */}
+                  {!isHost && room.playback.isPlaying && hasJoinedPlayback && !viewerControlsUnlocked && (
+                    <div
+                      className="absolute inset-0 z-10 cursor-pointer"
+                      onDoubleClick={handleToggleFullscreen}
+                      title="👑 Controlled by Host · Double click for fullscreen"
+                    />
+                  )}
                 </div>
               ) : currentMovie.posterUrl ? (
                 <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
@@ -913,20 +1055,38 @@ export default function TheatreRoom() {
                     type="button"
                     onClick={handleManualResync}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] bg-black/85 hover:bg-black/95 border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold tracking-wide shadow-[0_4px_25px_rgba(0,0,0,0.8),0_0_15px_rgba(198,167,106,0.3)] backdrop-blur-md hover:border-vc-gold transition-all active:scale-95 group"
-                    title="Smooth Sync: Align timeline and player without stopping or reloading the movie"
+                    title="Re-align timeline and player directly to host position"
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="group-hover:text-vc-gold-bright">⚡ Sync with Host ({formatTimecode(localTime)})</span>
                   </button>
                   <button
                     type="button"
+                    onClick={() => setViewerControlsUnlocked((u) => !u)}
+                    className={cn(
+                      'px-2.5 py-1.5 rounded-[4px] border text-xs font-mono transition-all backdrop-blur-md',
+                      viewerControlsUnlocked
+                        ? 'bg-vc-gold text-black font-bold border-vc-gold shadow-[0_0_10px_rgba(198,167,106,0.4)]'
+                        : 'bg-black/85 hover:bg-black/95 border-white/20 text-white/70 hover:text-white'
+                    )}
+                    title={
+                      viewerControlsUnlocked
+                        ? 'Lock Player Controls (prevent accidental desync)'
+                        : 'Unlock Player Controls (to toggle CC / Subtitles or Settings)'
+                    }
+                  >
+                    {viewerControlsUnlocked ? '🔓 Controls Unlocked' : '🔒 CC / Settings'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       setHardReloadCount((c) => c + 1);
+                      setStreamEpoch((e) => e + 1);
                       setSyncToast('↻ Reloading stream player...');
                       setTimeout(() => setSyncToast(null), 3000);
                     }}
                     className="p-1.5 rounded-[4px] bg-black/85 hover:bg-black/95 border border-white/20 hover:border-vc-gold/60 text-white/60 hover:text-vc-gold text-xs font-mono transition-all backdrop-blur-md"
-                    title="Hard Reload Player (Use only if stream is frozen)"
+                    title="Hard Reload Player"
                   >
                     ↻
                   </button>
