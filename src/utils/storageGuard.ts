@@ -140,3 +140,27 @@ export function initStorageGuard(): void {
   purgeSensitiveStorage();
   installStorageShield();
 }
+
+/**
+ * Safe, non-sensitive preferences for video playback quality.
+ * These store purely generic resolution strings ('auto' | '4k' | '1080' | '720' | '480')
+ * and contain zero user data or auth credentials.
+ */
+export function getVideoQualityPreference(): string {
+  if (typeof window === 'undefined') return 'auto';
+  try {
+    return localStorage.getItem('vc_pref_video_quality') || 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+export function setVideoQualityPreference(quality: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const safeQuality = ['auto', '4k', '1080', '720', '480'].includes(quality) ? quality : 'auto';
+    localStorage.setItem('vc_pref_video_quality', safeQuality);
+  } catch {
+    // Non-fatal
+  }
+}

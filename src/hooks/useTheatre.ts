@@ -285,12 +285,13 @@ export function useTheatre(theatreId: string | undefined) {
     [theatreId, isHost]
   );
 
-  // Change Audio Language (Host Only)
+  // Change Audio Language (with optional atomic streamServerId update) (Host Only)
   const changeAudioLanguage = useCallback(
-    async (audioLanguage: string) => {
+    async (audioLanguage: string, streamServerId?: string) => {
       if (!theatreId || !isHost) return;
       await updatePlayback(theatreId, {
         audioLanguage,
+        ...(streamServerId ? { streamServerId } : {}),
       });
     },
     [theatreId, isHost]

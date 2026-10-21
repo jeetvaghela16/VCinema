@@ -319,9 +319,10 @@ export async function updateParticipantHeartbeat(
 
 /**
  * Removes or updates participant presence when leaving.
- * If the departing participant is the HOST, the entire screening is ended for everyone.
+ * Updates the participant's online status to offline.
+ * Screenings are ONLY permanently ended when the host explicitly clicks 'End Screening' via endScreening().
  */
-export async function leaveTheatreRoom(theatreId: string, userId: string, isHost = false): Promise<void> {
+export async function leaveTheatreRoom(theatreId: string, userId: string, _isHost = false): Promise<void> {
   if (!isFirebaseConfigured) return;
 
   try {
@@ -330,17 +331,6 @@ export async function leaveTheatreRoom(theatreId: string, userId: string, isHost
       isOnline: false,
       lastSeen: Date.now(),
     });
-
-    if (isHost) {
-      // If host leaves, immediately terminate room projection for all guests
-      const roomDocRef = doc(db, 'theatres', theatreId);
-      await updateDoc(roomDocRef, {
-        isActive: false,
-        isEnded: true,
-        endedReason: 'The host has departed the screening session.',
-        updatedAt: Date.now(),
-      });
-    }
   } catch {
     // Graceful exit even if doc already removed
   }

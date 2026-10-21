@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { theatreTypes } from '../data/theatres';
 import { movies } from '../data/movies';
 import {
   CURATED_GLOBAL_MOVIES,
+  CURATED_GLOBAL_SERIES,
   AUDIO_LANGUAGES,
   STREAM_SERVERS,
   fetchTrendingMovies,
@@ -146,7 +147,9 @@ export default function CreateTheatre() {
     };
   }, []);
 
-  // Debounced search across both global movies and web series
+  const searchSeqRef = useRef(0);
+
+  // ── Debounced search across both global movies and web series (0ms instant preview + 40ms live search) ──
   useEffect(() => {
     const q = searchQuery.trim();
     if (!q) {
@@ -155,17 +158,40 @@ export default function CreateTheatre() {
       return;
     }
 
+    // 1. Instant 0ms Local in-memory match
+    const instantMovies = CURATED_GLOBAL_MOVIES.filter(
+      (m: Movie) =>
+        m.title.toLowerCase().includes(q.toLowerCase()) ||
+        m.genre.toLowerCase().includes(q.toLowerCase())
+    );
+    const instantSeries = CURATED_GLOBAL_SERIES.filter(
+      (s: Series) =>
+        s.title.toLowerCase().includes(q.toLowerCase()) ||
+        s.genre.toLowerCase().includes(q.toLowerCase())
+    );
+    const instantCombined = [...instantMovies, ...instantSeries];
+    if (instantCombined.length > 0) {
+      setSearchResults(instantCombined);
+    }
+
     setIsSearching(true);
+    const currentSeq = ++searchSeqRef.current;
+
+    // 2. Ultra-responsive 40ms debounce (reduced from 320ms)
     const timer = setTimeout(async () => {
       try {
         const [movs, sers] = await Promise.all([searchMovies(q), searchSeries(q)]);
+        if (searchSeqRef.current !== currentSeq) return;
         setSearchResults([...movs, ...sers]);
       } catch (err) {
+        if (searchSeqRef.current !== currentSeq) return;
         secureLogger.warn('Search failed:', err);
       } finally {
-        setIsSearching(false);
+        if (searchSeqRef.current === currentSeq) {
+          setIsSearching(false);
+        }
       }
-    }, 320);
+    }, 40);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -606,7 +632,7 @@ export default function CreateTheatre() {
                       : 'bg-white/5 text-vc-text-muted hover:text-white border border-white/5'
                   )}
                 >
-                  <span>🎬 Exclusives</span>
+                  <span>★ Award Winners</span>
                 </button>
                 <button
                   type="button"

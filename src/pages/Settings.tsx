@@ -4,6 +4,7 @@ import { cn } from '../utils/cn';
 import { useAuth } from '../hooks/useAuth';
 import { updateUserProfile } from '../services/userService';
 import { secureLogger } from '../utils/secureLogger';
+import { getVideoQualityPreference, setVideoQualityPreference } from '../utils/storageGuard';
 
 type Section = 'Account' | 'Appearance' | 'Playback' | 'Notifications';
 const SECTIONS: Section[] = ['Account', 'Appearance', 'Playback', 'Notifications'];
@@ -68,7 +69,7 @@ export default function Settings() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // Playback
-  const [quality, setQuality] = useState('auto');
+  const [quality, setQuality] = useState(() => getVideoQualityPreference());
   const [autoplay, setAutoplay] = useState(true);
 
   // Notifications
@@ -289,13 +290,18 @@ export default function Settings() {
                   <select
                     id="quality"
                     value={quality}
-                    onChange={(e) => setQuality(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setQuality(val);
+                      setVideoQualityPreference(val);
+                    }}
                     className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary focus:border-vc-gold/50 focus:outline-none"
                   >
-                    <option value="auto">Auto (4K HDR Adaptive)</option>
-                    <option value="4k">4K UHD Master</option>
-                    <option value="1080">1080p HD</option>
-                    <option value="720">720p</option>
+                    <option value="auto">Auto (Adaptive Master)</option>
+                    <option value="4k">4K UHD Master (2160p)</option>
+                    <option value="1080">1080p Full HD</option>
+                    <option value="720">720p HD</option>
+                    <option value="480">480p SD (Data Saver)</option>
                   </select>
                 </div>
                 <Toggle

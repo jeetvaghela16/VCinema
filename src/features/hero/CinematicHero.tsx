@@ -9,13 +9,13 @@ interface CinematicHeroProps {
 export default function CinematicHero({ movie }: CinematicHeroProps) {
   const navigate = useNavigate();
   const { openWatchModal } = useWatchModal();
-  const title = movie?.title || 'The Grand Horizon';
-  const year = movie?.year || 2026;
-  const duration = movie?.duration || '2h 18m';
-  const genre = movie?.genre || 'Psychological Drama';
+  const title = movie?.title || 'Interstellar';
+  const year = movie?.year || 2014;
+  const duration = movie?.duration || '2h 49m';
+  const genre = movie?.genre || 'Sci-Fi';
   const description =
     movie?.description ||
-    'A breathtaking journey across the edge of the world, where silence speaks louder than words and the horizon holds infinite secrets. Experience it synchronized with your private circle.';
+    'The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel and conquer the vast distances involved in an interstellar voyage.';
 
   return (
     <section

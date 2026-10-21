@@ -128,7 +128,7 @@ export default function TheatreDemo() {
               {/* Film title overlay */}
               <div className="absolute bottom-6 left-6">
                 <p className="text-[10px] text-white/30 font-mono mb-1">0:58:14 / 2:18:00</p>
-                <p className="text-sm font-serif text-white/50">The Grand Horizon</p>
+                <p className="text-sm font-serif text-white/50">Interstellar</p>
               </div>
 
               {/* Viewer notice */}

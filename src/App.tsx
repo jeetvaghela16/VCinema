@@ -1,9 +1,10 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { AuthProvider } from './context/AuthContext';
 import { WatchModalProvider } from './context/WatchModalContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import { activateAdShield } from './utils/adShield';
 
 const Home = lazy(() => import('./pages/Home'));
 const Movies = lazy(() => import('./pages/Movies'));
@@ -36,6 +37,11 @@ function LoadingFallback() {
 }
 
 function App() {
+  useEffect(() => {
+    const deactivate = activateAdShield();
+    return () => deactivate();
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

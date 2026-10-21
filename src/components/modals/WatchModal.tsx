@@ -238,6 +238,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
                   src={currentStreamUrl}
                   className="w-full h-full border-0"
                   allowFullScreen
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   title={`${item.title} Player`}
                 />
@@ -260,7 +261,8 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
                 src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&modestbranding=1&rel=0`}
                 className="w-full h-full border-0"
                 allowFullScreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 title={`${item.title} Trailer`}
               />
             ) : (

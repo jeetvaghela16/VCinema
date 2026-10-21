@@ -218,35 +218,111 @@ export async function fetchTopRatedMovies(page = 1): Promise<Movie[]> {
   return data.results.map(formatTmdbMovie);
 }
 
+// ── High-speed Search Cache & In-flight Deduplication (0ms latency for cached queries) ──
+const movieSearchCache = new Map<string, Movie[]>();
+const seriesSearchCache = new Map<string, Series[]>();
+const inFlightMovieSearches = new Map<string, Promise<Movie[]>>();
+const inFlightSeriesSearches = new Map<string, Promise<Series[]>>();
+
 /**
- * Search Movies by title or keyword across the world
+ * Search Movies by title or keyword across the world (instant 0ms cached response)
  */
 export async function searchMovies(query: string): Promise<Movie[]> {
-  if (!query.trim()) return CURATED_GLOBAL_MOVIES;
-  const data = await tmdbFetch<{ results: any[] }>('/search/movie', { query: query.trim() });
-  if (!data?.results) {
-    // Fallback filter on curated list
-    return CURATED_GLOBAL_MOVIES.filter((m) =>
-      m.title.toLowerCase().includes(query.toLowerCase()) ||
-      m.genre.toLowerCase().includes(query.toLowerCase())
-    );
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return CURATED_GLOBAL_MOVIES;
+
+  // Instant 0ms cache return
+  if (movieSearchCache.has(normalized)) {
+    return movieSearchCache.get(normalized)!;
   }
-  return data.results.map(formatTmdbMovie);
+
+  // Deduplicate in-flight requests for identical queries
+  if (inFlightMovieSearches.has(normalized)) {
+    return inFlightMovieSearches.get(normalized)!;
+  }
+
+  const searchPromise = (async () => {
+    try {
+      const data = await tmdbFetch<{ results: any[] }>('/search/movie', { query: query.trim() });
+      if (!data?.results || data.results.length === 0) {
+        // Fallback filter on curated list
+        const fallback = CURATED_GLOBAL_MOVIES.filter((m) =>
+          m.title.toLowerCase().includes(normalized) ||
+          m.genre.toLowerCase().includes(normalized)
+        );
+        movieSearchCache.set(normalized, fallback);
+        return fallback;
+      }
+      const formatted = data.results.map(formatTmdbMovie);
+      if (movieSearchCache.size > 150) {
+        const firstKey = movieSearchCache.keys().next().value;
+        if (firstKey) movieSearchCache.delete(firstKey);
+      }
+      movieSearchCache.set(normalized, formatted);
+      return formatted;
+    } catch (err) {
+      secureLogger.warn('searchMovies failed:', err);
+      const fallback = CURATED_GLOBAL_MOVIES.filter((m) =>
+        m.title.toLowerCase().includes(normalized) ||
+        m.genre.toLowerCase().includes(normalized)
+      );
+      return fallback;
+    } finally {
+      inFlightMovieSearches.delete(normalized);
+    }
+  })();
+
+  inFlightMovieSearches.set(normalized, searchPromise);
+  return searchPromise;
 }
 
 /**
- * Search Series by title or keyword
+ * Search Series by title or keyword (instant 0ms cached response)
  */
 export async function searchSeries(query: string): Promise<Series[]> {
-  if (!query.trim()) return CURATED_GLOBAL_SERIES;
-  const data = await tmdbFetch<{ results: any[] }>('/search/tv', { query: query.trim() });
-  if (!data?.results) {
-    return CURATED_GLOBAL_SERIES.filter((s) =>
-      s.title.toLowerCase().includes(query.toLowerCase()) ||
-      s.genre.toLowerCase().includes(query.toLowerCase())
-    );
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return CURATED_GLOBAL_SERIES;
+
+  if (seriesSearchCache.has(normalized)) {
+    return seriesSearchCache.get(normalized)!;
   }
-  return data.results.map(formatTmdbSeries);
+
+  if (inFlightSeriesSearches.has(normalized)) {
+    return inFlightSeriesSearches.get(normalized)!;
+  }
+
+  const searchPromise = (async () => {
+    try {
+      const data = await tmdbFetch<{ results: any[] }>('/search/tv', { query: query.trim() });
+      if (!data?.results || data.results.length === 0) {
+        const fallback = CURATED_GLOBAL_SERIES.filter((s) =>
+          s.title.toLowerCase().includes(normalized) ||
+          s.genre.toLowerCase().includes(normalized)
+        );
+        seriesSearchCache.set(normalized, fallback);
+        return fallback;
+      }
+      const formatted = data.results.map(formatTmdbSeries);
+      if (seriesSearchCache.size > 150) {
+        const firstKey = seriesSearchCache.keys().next().value;
+        if (firstKey) seriesSearchCache.delete(firstKey);
+      }
+      seriesSearchCache.set(normalized, formatted);
+      return formatted;
+    } catch (err) {
+      secureLogger.warn('searchSeries failed:', err);
+      const fallback = CURATED_GLOBAL_SERIES.filter((s) =>
+        s.title.toLowerCase().includes(normalized) ||
+        s.genre.toLowerCase().includes(normalized)
+      );
+      return fallback;
+    } finally {
+      inFlightSeriesSearches.delete(normalized);
+    }
+  })();
+
+  inFlightSeriesSearches.set(normalized, searchPromise);
+  return searchPromise;
 }
 
 /**
@@ -402,7 +478,8 @@ export interface StreamServer {
     season?: number,
     episode?: number,
     audioLang?: string,
-    startSeconds?: number
+    startSeconds?: number,
+    quality?: string
   ) => string;
 }
 
@@ -414,6 +491,16 @@ export interface AudioTrackOption {
   description: string;
   recommendedServerId: string;
 }
+
+export const LANG_CODE_MAP: Record<string, string> = {
+  hindi: 'hi',
+  english: 'en',
+  spanish: 'es',
+  french: 'fr',
+  japanese: 'ja',
+  multi: 'all',
+  global: 'all',
+};
 
 export const AUDIO_LANGUAGES: AudioTrackOption[] = [
   {
@@ -446,7 +533,7 @@ export const AUDIO_LANGUAGES: AudioTrackOption[] = [
     glyph: 'ES',
     badge: 'Español',
     description: 'Spanish dubbed track for international cinema',
-    recommendedServerId: 'zxcstream',
+    recommendedServerId: 'autoembed',
   },
   {
     id: 'french',
@@ -454,7 +541,7 @@ export const AUDIO_LANGUAGES: AudioTrackOption[] = [
     glyph: 'FR',
     badge: 'Français',
     description: 'French dubbed voice track',
-    recommendedServerId: 'zxcstream',
+    recommendedServerId: 'autoembed',
   },
   {
     id: 'japanese',
@@ -474,12 +561,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'multi',
     syncRating: 'perfect',
     audioSupport: 'Hindi, English, Tamil, Telugu, Spanish, French in player settings',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'multi', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'multi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
       const timeParam = sec > 0 ? `&startAt=${sec}&start=${sec}&t=${sec}` : '';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}&ds_lang=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}&res=${quality}` : '';
       return isTv
-        ? `https://vidfast.vc/tv/${id}/${s}/${e}?autoPlay=true${timeParam}`
-        : `https://vidfast.vc/movie/${id}?autoPlay=true${timeParam}`;
+        ? `https://vidfast.vc/tv/${id}/${s}/${e}?autoPlay=true${langParam}${qualParam}${timeParam}`
+        : `https://vidfast.vc/movie/${id}?autoPlay=true${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -489,12 +579,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'hindi',
     syncRating: 'perfect',
     audioSupport: 'Specialized Hindi Dubbed and Multi-Audio player with regional audio tracks',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
       const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&ds_lang=${langCode}&lang=${langCode}&audio=${langCode}` : '&ds_lang=all';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
       return isTv
-        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&autoplay=1${timeParam}`
-        : `https://multiembed.mov/?video_id=${id}&tmdb=1&autoplay=1${timeParam}`;
+        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&autoplay=1${langParam}${qualParam}${timeParam}`
+        : `https://multiembed.mov/?video_id=${id}&tmdb=1&autoplay=1${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -504,12 +597,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'hindi',
     syncRating: 'standard',
     audioSupport: 'Dedicated Hindi Dubbed audio stream',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
-      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&startAt=${sec}&autoplay=1` : '?autoplay=1';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}&ds_lang=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
       return isTv
-        ? `https://nxsha.space/embed/tv/${id}/${s}/${e}${timeParam}`
-        : `https://nxsha.space/embed/movie/${id}${timeParam}`;
+        ? `https://nxsha.space/embed/tv/${id}/${s}/${e}?autoplay=1${langParam}${qualParam}${timeParam}`
+        : `https://nxsha.space/embed/movie/${id}?autoplay=1${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -519,12 +615,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'english',
     syncRating: 'high',
     audioSupport: 'Original English audio, crystal clear 1080p stream',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'english', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'english', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
       const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
       return isTv
-        ? `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true${timeParam}`
-        : `https://vidlink.pro/movie/${id}?autoplay=true${timeParam}`;
+        ? `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true${langParam}${qualParam}${timeParam}`
+        : `https://vidlink.pro/movie/${id}?autoplay=true${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -534,12 +633,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'hindi',
     syncRating: 'standard',
     audioSupport: 'Hindi & Dual Audio library',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
-      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoplay=1` : '?autoplay=1';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&lang=${langCode}&audio=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}` : '';
       return isTv
-        ? `https://bingr.one/watch/tv/${id}/${s}/${e}${timeParam}`
-        : `https://bingr.one/watch/movie/${id}${timeParam}`;
+        ? `https://bingr.one/watch/tv/${id}/${s}/${e}?autoplay=1${langParam}${qualParam}${timeParam}`
+        : `https://bingr.one/watch/movie/${id}?autoplay=1${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -549,12 +651,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'global',
     syncRating: 'high',
     audioSupport: 'Worldwide auto-resolving stream nodes',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'global', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'global', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
-      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoplay=1` : '?autoplay=1';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&lang=${langCode}&audio=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}` : '';
       return isTv
-        ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}${timeParam}`
-        : `https://player.autoembed.cc/embed/movie/${id}${timeParam}`;
+        ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}?autoplay=1${langParam}${qualParam}${timeParam}`
+        : `https://player.autoembed.cc/embed/movie/${id}?autoplay=1${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -564,12 +669,15 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'english',
     syncRating: 'high',
     audioSupport: '4K & 1080p ultra-high bitrate mirror',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'english', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'english', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
-      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoPlay=true` : '?autoPlay=true';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&lang=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}` : '';
       return isTv
-        ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}${timeParam}`
-        : `https://vidsrc.cc/v2/embed/movie/${id}${timeParam}`;
+        ? `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}?autoPlay=true${langParam}${qualParam}${timeParam}`
+        : `https://vidsrc.cc/v2/embed/movie/${id}?autoPlay=true${langParam}${qualParam}${timeParam}`;
     },
   },
   {
@@ -579,18 +687,21 @@ export const STREAM_SERVERS: StreamServer[] = [
     category: 'global',
     syncRating: 'standard',
     audioSupport: 'High-speed mirror with multi-CDN backup',
-    getUrl: (id, isTv, s = 1, e = 1, _lang = 'global', startSeconds = 0) => {
+    getUrl: (id, isTv, s = 1, e = 1, _lang = 'global', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
-      const timeParam = sec > 0 ? `?start=${sec}&t=${sec}&autoplay=1` : '?autoplay=1';
+      const langCode = LANG_CODE_MAP[_lang] || _lang;
+      const langParam = langCode && langCode !== 'all' ? `&lang=${langCode}` : '';
+      const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
+      const timeParam = sec > 0 ? `&start=${sec}&t=${sec}` : '';
       return isTv
-        ? `https://vidstuck.cc/embed/tv/${id}/${s}/${e}${timeParam}`
-        : `https://vidstuck.cc/embed/movie/${id}${timeParam}`;
+        ? `https://vidstuck.cc/embed/tv/${id}/${s}/${e}?autoplay=1${langParam}${qualParam}${timeParam}`
+        : `https://vidstuck.cc/embed/movie/${id}?autoplay=1${langParam}${qualParam}${timeParam}`;
     },
   },
 ];
 
 /**
- * Get streaming embed player URL based on TMDB ID, selected server, audio language, and start timestamp
+ * Get streaming embed player URL based on TMDB ID, selected server, audio language, start timestamp, and video quality
  */
 export function getEmbedStreamUrl(
   tmdbId: number,
@@ -599,10 +710,11 @@ export function getEmbedStreamUrl(
   episode = 1,
   serverId = 'vidfast',
   audioLang = 'multi',
-  startSeconds = 0
+  startSeconds = 0,
+  quality = 'auto'
 ): string {
   const server = STREAM_SERVERS.find((s) => s.id === serverId) || STREAM_SERVERS[0];
-  return server.getUrl(tmdbId, type === 'tv', season, episode, audioLang, startSeconds);
+  return server.getUrl(tmdbId, type === 'tv', season, episode, audioLang, startSeconds, quality);
 }
 
 // --------------------------------------------------------------------------
