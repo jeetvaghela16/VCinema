@@ -19,7 +19,7 @@ import {
 } from '../services/tmdbService';
 import type { Movie, Series } from '../types';
 import { PosterArtwork } from '../components/cards/PosterArtwork';
-import { formatTimecode, calculateAuthoritativePosition } from '../services/theatreService';
+import { formatTimecode, calculateAuthoritativePosition, parseDurationToSeconds } from '../services/theatreService';
 import { cn } from '../utils/cn';
 import { secureLogger } from '../utils/secureLogger';
 import { getVideoQualityPreference, setVideoQualityPreference } from '../utils/storageGuard';
@@ -63,6 +63,7 @@ export default function TheatreRoom() {
     endRoom,
     clearChat,
     sendMessage,
+    updateRoomPlayback,
   } = useTheatre(roomId);
 
   const [chatOpen, setChatOpen] = useState(true);
@@ -84,6 +85,8 @@ export default function TheatreRoom() {
 
   // Authoritative Iframe Real-Time Alignment State
   const [streamAnchorTime, setStreamAnchorTime] = useState<number>(0);
+  const [reportedDuration, setReportedDuration] = useState<number>(0);
+  const lastHostBroadcastRef = useRef<number>(0);
   const isLocalSeekingRef = useRef(false);
   const hostPausedFromPlayerRef = useRef(false);
   const hasInitializedAnchorRef = useRef(false);
@@ -113,9 +116,69 @@ export default function TheatreRoom() {
   const [drawerSeason, setDrawerSeason] = useState<number>(1);
   const [isLoadingDrawerEpisodes, setIsLoadingDrawerEpisodes] = useState(false);
 
+  // Construct current movie with full worldwide metadata and fallback
+  const isTv = room?.playback?.isTv || false;
+  const currentSeason = room?.playback?.season || 1;
+  const currentEpisode = room?.playback?.episode || 1;
+  const knownMovie =
+    movies.find((m) => m.id === room?.playback?.currentMovieId) ||
+    CURATED_GLOBAL_MOVIES.find((m) => m.id === room?.playback?.currentMovieId);
+
+  const activeTmdbId = room?.playback?.tmdbId || (knownMovie as any)?.tmdbId;
+
+  const currentMovie: Movie = {
+    id: room?.playback?.currentMovieId || 'tmdb-m-157336',
+    title: room?.playback?.currentMovieTitle || knownMovie?.title || 'Feature Presentation',
+    year: knownMovie?.year || 2026,
+    genre: knownMovie?.genre || (isTv ? 'Web Series' : 'Cinema'),
+    rating: knownMovie?.rating || '8.8',
+    duration: knownMovie?.duration || (isTv ? `S${currentSeason} : E${currentEpisode}` : '2h 15m'),
+    description: knownMovie?.description || 'Synchronized screening in the VCinema virtual auditorium.',
+    gradientFrom: knownMovie?.gradientFrom || '#1c2b3a',
+    gradientTo: knownMovie?.gradientTo || '#0a1520',
+    posterUrl: room?.playback?.currentMoviePoster || knownMovie?.posterUrl,
+    backdropUrl: room?.playback?.currentMovieBackdrop || knownMovie?.backdropUrl,
+    trailerKey: room?.playback?.currentMovieTrailerKey || knownMovie?.trailerKey,
+    videoUrl: room?.playback?.currentMovieVideoUrl || knownMovie?.videoUrl,
+    tmdbId: activeTmdbId,
+  };
+
+  const parsedMovieDuration = parseDurationToSeconds(currentMovie.duration);
+
+  const effectiveDuration =
+    reportedDuration > 60
+      ? reportedDuration
+      : room?.playback?.duration && room.playback.duration !== 8280
+      ? room.playback.duration
+      : parsedMovieDuration > 60
+      ? parsedMovieDuration
+      : room?.playback?.duration || 8280;
+
+  // Auto-sync movie duration to Firestore if missing or default
   useEffect(() => {
-    if (room?.playback?.streamServerId) setTheatreServer(room.playback.streamServerId);
-    if (room?.playback?.audioLanguage) setTheatreAudioLang(room.playback.audioLanguage);
+    if (isHost && parsedMovieDuration > 60 && (!room?.playback?.duration || room.playback.duration === 8280)) {
+      updateRoomPlayback({ duration: parsedMovieDuration });
+    }
+  }, [isHost, parsedMovieDuration, room?.playback?.duration, updateRoomPlayback]);
+
+  // Synchronize server, audio dub, and projection mode across all auditorium viewers
+  useEffect(() => {
+    let serverOrLangChanged = false;
+    if (room?.playback?.streamServerId && room.playback.streamServerId !== theatreServer) {
+      setTheatreServer(room.playback.streamServerId);
+      serverOrLangChanged = true;
+    }
+    if (room?.playback?.audioLanguage && room.playback.audioLanguage !== theatreAudioLang) {
+      setTheatreAudioLang(room.playback.audioLanguage);
+      serverOrLangChanged = true;
+    }
+    if (serverOrLangChanged && room?.playback) {
+      const authPos = Math.floor(calculateAuthoritativePosition(room.playback));
+      setStreamAnchorTime(authPos);
+    }
+    if (room?.playback?.duration && room.playback.duration !== 8280) {
+      setReportedDuration(room.playback.duration);
+    }
     if (room?.playback?.mediaType) {
       setProjectionMode(
         room.playback.mediaType === 'trailer'
@@ -127,7 +190,7 @@ export default function TheatreRoom() {
           : 'stream'
       );
     }
-  }, [room?.playback?.streamServerId, room?.playback?.audioLanguage, room?.playback?.mediaType]);
+  }, [room?.playback?.streamServerId, room?.playback?.audioLanguage, room?.playback?.mediaType, room?.playback?.duration]);
 
   // Load TV Series details & episodes when playing a series
   useEffect(() => {
@@ -205,14 +268,23 @@ export default function TheatreRoom() {
   const handleSelectServer = async (serverId: string) => {
     if (!isHost) return;
     setTheatreServer(serverId);
-    setStreamAnchorTime(localTime);
-    await changeServer(serverId);
+    const curTime = Math.floor(localTime);
+    setStreamAnchorTime(curTime);
+
+    const serverObj = STREAM_SERVERS.find((s) => s.id === serverId);
+    let effectiveAudio = theatreAudioLang;
+    if (serverObj?.category === 'hindi' && theatreAudioLang !== 'hindi') {
+      effectiveAudio = 'hindi';
+      setTheatreAudioLang('hindi');
+    }
+    await changeServer(serverId, effectiveAudio);
   };
 
   const handleSelectDub = async (langId: string) => {
     if (!isHost) return;
     setTheatreAudioLang(langId);
-    setStreamAnchorTime(localTime);
+    const curTime = Math.floor(localTime);
+    setStreamAnchorTime(curTime);
     const langConfig = AUDIO_LANGUAGES.find((l) => l.id === langId);
     const targetServerId =
       langConfig?.recommendedServerId && STREAM_SERVERS.some((s) => s.id === langConfig.recommendedServerId)
@@ -324,13 +396,15 @@ export default function TheatreRoom() {
       setLocalTime(Math.floor(authoritativeTime));
     }
 
-    // Advance local timer every 1000ms while running, enforcing exact second-by-second lockstep sync
+    // Advance local timer every 250ms while running, enforcing exact sub-second lockstep sync
     const interval = setInterval(() => {
       const target = calculateAuthoritativePosition(playback);
       const targetSec = Math.floor(target);
 
       // Lock local timeline display to host's authoritative second
-      setLocalTime(targetSec);
+      if (!isLocalSeekingRef.current) {
+        setLocalTime(targetSec);
+      }
 
       // Real-time second-by-second lockstep alignment for joined viewers
       if (!isHost && playback.isPlaying) {
@@ -349,7 +423,7 @@ export default function TheatreRoom() {
         const physicalTime = guestPlayerTimeRef.current;
         if (physicalTime > 0) {
           const drift = Math.abs(physicalTime - targetSec);
-          if (drift > 1.0) {
+          if (drift > 1.2) {
             sendIframePlaybackCommand('seek', targetSec, true);
             sendIframePlaybackCommand('play', targetSec, true);
           }
@@ -358,7 +432,7 @@ export default function TheatreRoom() {
           sendIframePlaybackCommand('play', targetSec, true);
         }
       }
-    }, 1000);
+    }, 250);
 
     return () => clearInterval(interval);
   }, [room?.playback, isHost, projectionMode]);
@@ -468,17 +542,18 @@ export default function TheatreRoom() {
 
   // Handle Seek click (Host only) - Auto-syncs host player and broadcasts to all joined users
   const handleSeekClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isHost || !room?.playback?.duration) return;
+    if (!isHost) return;
+    const effDur = effectiveDuration || 8280;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const percent = Math.max(0, Math.min(1, clickX / rect.width));
-    const targetSeconds = Math.round(percent * room.playback.duration);
+    const targetSeconds = Math.round(percent * effDur);
     isLocalSeekingRef.current = true;
     setLocalTime(targetSeconds);
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = targetSeconds;
     }
-    sendIframePlaybackCommand('seek', targetSeconds, room.playback.isPlaying);
+    sendIframePlaybackCommand('seek', targetSeconds, room?.playback?.isPlaying ?? true);
     seek(targetSeconds);
     setTimeout(() => {
       isLocalSeekingRef.current = false;
@@ -530,7 +605,7 @@ export default function TheatreRoom() {
   const handleHostSkipForward10 = async () => {
     if (!isHost || !room?.playback) return;
     isLocalSeekingRef.current = true;
-    const maxDur = room.playback.duration || 8280;
+    const maxDur = effectiveDuration || 8280;
     const newTime = Math.min(maxDur, localTime + 10);
     setLocalTime(newTime);
     if (videoElementRef.current) {
@@ -635,12 +710,19 @@ export default function TheatreRoom() {
           win.postMessage('play', '*');
 
         } else if (action === 'seek') {
-          // Precise seek command (allowSeekAhead only if we intend to play immediately)
+          // Precise seek command across all player specs (PlayerJS, VidLink, VidFast, MultiEmbed, YouTube)
           win.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [sec, isPlayingTarget] }), '*');
           win.postMessage(JSON.stringify({ type: 'seek', time: sec }), '*');
           win.postMessage(JSON.stringify({ method: 'seek', value: sec }), '*');
           win.postMessage(JSON.stringify({ event: 'command', command: 'setCurrentTime', value: sec }), '*');
           win.postMessage(JSON.stringify({ context: 'player.js', version: '0.0.11', event: 'command', command: 'setCurrentTime', value: sec }), '*');
+          win.postMessage(JSON.stringify({ context: 'player.js', version: '0.0.11', event: 'command', command: 'seek', value: sec }), '*');
+          win.postMessage(JSON.stringify({ context: 'player.js', version: '0.0.11', event: 'command', command: 'time', value: sec }), '*');
+          win.postMessage(JSON.stringify({ type: 'SEEK', data: { time: sec } }), '*');
+          win.postMessage(JSON.stringify({ type: 'SEEK', time: sec }), '*');
+          win.postMessage(JSON.stringify({ action: 'seek', time: sec }), '*');
+          win.postMessage(JSON.stringify({ event: 'seek', time: sec }), '*');
+          win.postMessage(JSON.stringify({ command: 'seek', time: sec }), '*');
 
           if (isPlayingTarget) {
             win.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
@@ -685,8 +767,9 @@ export default function TheatreRoom() {
         const originStr = typeof event.origin === 'string' ? event.origin : '';
         const isFromYouTube = originStr.includes('youtube.com') || originStr.includes('youtube-nocookie.com');
 
-        // Extract physical time and playback status from incoming player messages
+        // Extract physical time, duration, and playback status from incoming player messages
         let playerCurTime: number | null = null;
+        let playerDuration: number | null = null;
         let detectedPlay = false;
         let detectedPause = false;
         let detectedSeekTime: number | null = null;
@@ -709,6 +792,9 @@ export default function TheatreRoom() {
               playerCurTime = info.currentTime;
               detectedSeekTime = info.currentTime;
             }
+            if (typeof info.duration === 'number' && info.duration > 60) {
+              playerDuration = info.duration;
+            }
           }
 
           if (ytPlayerState === 1) detectedPlay = true;
@@ -730,7 +816,12 @@ export default function TheatreRoom() {
         } else if (eventName === 'play' || eventName === 'playing') {
           detectedPlay = true;
         } else if (eventName === 'seeked' || eventName === 'seek') {
-          const timeVal = payload.data?.currentTime ?? payload.value ?? payload.time ?? payload.currentTime;
+          const timeVal =
+            payload.data?.currentTime ??
+            payload.data?.time ??
+            payload.value ??
+            payload.time ??
+            payload.currentTime;
           if (typeof timeVal === 'number' && Number.isFinite(timeVal)) {
             detectedSeekTime = timeVal;
           }
@@ -738,11 +829,35 @@ export default function TheatreRoom() {
 
         const rawTime =
           payload.data?.currentTime ??
-          payload.value ??
+          payload.data?.time ??
+          payload.info?.currentTime ??
+          payload.value?.currentTime ??
+          payload.value?.time ??
+          payload.currentTime ??
           payload.time ??
-          payload.currentTime;
+          (typeof payload.value === 'number' ? payload.value : null);
+
         if (typeof rawTime === 'number' && Number.isFinite(rawTime)) {
           playerCurTime = rawTime;
+        }
+
+        const rawDur =
+          payload.data?.duration ??
+          payload.info?.duration ??
+          payload.duration ??
+          payload.value?.duration;
+
+        if (typeof rawDur === 'number' && rawDur > 60) {
+          playerDuration = rawDur;
+        }
+
+        // Keep real movie duration synced with video player's true duration
+        if (playerDuration !== null && playerDuration > 60) {
+          const durSec = Math.floor(playerDuration);
+          setReportedDuration(durSec);
+          if (isHost && (!room?.playback?.duration || Math.abs(room.playback.duration - durSec) > 5)) {
+            updateRoomPlayback({ duration: durSec });
+          }
         }
 
         // Keep guest physical player time updated
@@ -785,15 +900,29 @@ export default function TheatreRoom() {
           play(pos);
         }
 
-        // 2. Host Player Scrub / Seek Synchronization
+        // 2. Host Player Scrub / Seek Synchronization (Player progress bar -> Website progress bar & Room)
         if (detectedSeekTime !== null) {
           const seekPos = Math.floor(detectedSeekTime);
-          if (Math.abs(seekPos - localTimeRef.current) > 2.5) {
+          if (Math.abs(seekPos - localTimeRef.current) > 2.0) {
             isLocalSeekingRef.current = true;
+            setLocalTime(seekPos);
             seek(seekPos);
             setTimeout(() => {
               isLocalSeekingRef.current = false;
             }, 1500);
+          }
+        } else if (playerCurTime !== null && !isLocalSeekingRef.current) {
+          // Snap host local timeline to exact physical player second every second
+          setLocalTime(Math.floor(playerCurTime));
+
+          // Broadcast host position to Firestore periodically every 2s
+          const now = Date.now();
+          if (now - lastHostBroadcastRef.current > 2000 && room?.playback?.isPlaying) {
+            lastHostBroadcastRef.current = now;
+            updateRoomPlayback({
+              currentTime: Math.floor(playerCurTime),
+              lastUpdated: now,
+            });
           }
         }
       } catch {
@@ -803,7 +932,7 @@ export default function TheatreRoom() {
 
     window.addEventListener('message', handleWindowMessage);
     return () => window.removeEventListener('message', handleWindowMessage);
-  }, [isHost, room?.playback, pause, play, seek, sendMessage]);
+  }, [isHost, room?.playback, pause, play, seek, sendMessage, updateRoomPlayback]);
 
   // Initial anchor position setup when room first arrives
   useEffect(() => {
@@ -903,6 +1032,8 @@ export default function TheatreRoom() {
     setLocalTime(hostTime);
     setHasJoinedPlayback(true);
     guestPlayerTimeRef.current = hostTime;
+    setStreamAnchorTime(hostTime);
+    setHardReloadCount((c) => c + 1);
 
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = hostTime;
@@ -989,33 +1120,7 @@ export default function TheatreRoom() {
     );
   }
 
-  // Construct current movie with full worldwide metadata and fallback
-  const knownMovie =
-    movies.find((m) => m.id === room.playback.currentMovieId) ||
-    CURATED_GLOBAL_MOVIES.find((m) => m.id === room.playback.currentMovieId);
-
-  const activeTmdbId = room.playback.tmdbId || (knownMovie as any)?.tmdbId;
-  const isTv = room.playback.isTv || false;
-  const currentSeason = room.playback.season || 1;
-  const currentEpisode = room.playback.episode || 1;
-
-  const currentMovie: Movie = {
-    id: room.playback.currentMovieId || 'tmdb-m-157336',
-    title: room.playback.currentMovieTitle || knownMovie?.title || 'Feature Presentation',
-    year: knownMovie?.year || 2026,
-    genre: knownMovie?.genre || (isTv ? 'Web Series' : 'Cinema'),
-    rating: knownMovie?.rating || '8.8',
-    duration: knownMovie?.duration || (isTv ? `S${currentSeason} : E${currentEpisode}` : '2h 15m'),
-    description: knownMovie?.description || 'Synchronized screening in the VCinema virtual auditorium.',
-    gradientFrom: knownMovie?.gradientFrom || '#1c2b3a',
-    gradientTo: knownMovie?.gradientTo || '#0a1520',
-    posterUrl: room.playback.currentMoviePoster || knownMovie?.posterUrl,
-    backdropUrl: room.playback.currentMovieBackdrop || knownMovie?.backdropUrl,
-    trailerKey: room.playback.currentMovieTrailerKey || knownMovie?.trailerKey,
-    videoUrl: room.playback.currentMovieVideoUrl || knownMovie?.videoUrl,
-    tmdbId: activeTmdbId,
-  };
-  const duration = room.playback.duration || 8280;
+  const duration = effectiveDuration;
   const progressPercent = Math.min(100, Math.max(0, (localTime / duration) * 100));
 
   return (
@@ -1134,16 +1239,21 @@ export default function TheatreRoom() {
       {/* ── MAIN AUDITORIUM CANVAS ── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Screen + Controls */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden">
           {/* Cinema Screen Container */}
-          <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 relative min-h-[240px]">
+          <div className="flex-1 flex items-center justify-center px-2 sm:px-4 md:px-6 py-1.5 sm:py-2 relative min-h-0">
             <div
               ref={screenRef}
-              style={{
-                width: 'min(100%, calc((100vh - 300px) * 16 / 9))',
-                maxWidth: '64rem',
-              }}
-              className="aspect-video rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)] group"
+              style={
+                isFullscreen
+                  ? undefined
+                  : {
+                      width: 'min(100%, calc((100vh - 370px) * 16 / 9))',
+                      maxHeight: 'calc(100vh - 370px)',
+                      maxWidth: '64rem',
+                    }
+              }
+              className="aspect-video w-full rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)] group"
               aria-label="Cinema screen"
             >
               {/* Floating Fullscreen Exit Button inside Screen Container */}
@@ -1267,7 +1377,6 @@ export default function TheatreRoom() {
                     }`}
                     className="w-full h-full border-0"
                     allowFullScreen
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     title={currentMovie.title}
                   />
@@ -1307,7 +1416,6 @@ export default function TheatreRoom() {
                     src={embedStreamUrl}
                     className="w-full h-full border-0"
                     allowFullScreen
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     title={currentMovie.title}
                   />
@@ -1416,8 +1524,8 @@ export default function TheatreRoom() {
           </div>
 
           {/* ── AUDITORIUM PROJECTION CONSOLE & CONTROLS ── */}
-          <div className="flex-shrink-0 px-3 md:px-8 pb-3">
-            <div className="max-w-5xl mx-auto glass-panel rounded-[4px] px-4 md:px-6 py-3 border border-white/5 space-y-2.5">
+          <div className="flex-shrink-0 px-3 md:px-8 pb-2.5">
+            <div className="max-w-5xl mx-auto glass-panel rounded-[4px] px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 border border-white/5 space-y-2">
               {/* ── MASTER SYNCHRONIZED PLAYBACK CONSOLE (Host Controlled) ── */}
               <div className="flex items-center gap-3 pb-2.5 border-b border-white/5 flex-wrap sm:flex-nowrap">
                 {/* Play / Pause Toggle Button */}

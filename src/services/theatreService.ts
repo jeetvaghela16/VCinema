@@ -59,6 +59,24 @@ export function formatTimecode(seconds: number): string {
 }
 
 /**
+ * Parses duration strings like "2h 49m", "1h 30m 15s", "45m" into total seconds
+ */
+export function parseDurationToSeconds(durationStr?: string): number {
+  if (!durationStr) return 8280;
+  const matchHours = durationStr.match(/(\d+)\s*h/i);
+  const matchMins = durationStr.match(/(\d+)\s*m/i);
+  const matchSecs = durationStr.match(/(\d+)\s*s/i);
+  if (matchHours || matchMins || matchSecs) {
+    const h = matchHours ? parseInt(matchHours[1], 10) : 0;
+    const m = matchMins ? parseInt(matchMins[1], 10) : 0;
+    const s = matchSecs ? parseInt(matchSecs[1], 10) : 0;
+    const total = h * 3600 + m * 60 + s;
+    if (total > 0) return total;
+  }
+  return 8280;
+}
+
+/**
  * Recursively strips undefined fields from an object so Firestore setDoc/updateDoc never fails
  */
 export function sanitizeFirestore<T>(data: T): T {
@@ -158,8 +176,8 @@ export async function createTheatreRoom(
     CURATED_GLOBAL_MOVIES.find((m) => m.id === params.movieId) ||
     movies[0];
 
-  // Default duration in seconds (2h 18m -> 8280s)
-  const initialDuration = 8280;
+  // Default duration in seconds (accurately parsed from film duration or 8280s default)
+  const initialDuration = parseDurationToSeconds(selectedMovie.duration) || 8280;
 
   const initialPlayback: PlaybackState = {
     isPlaying: false,

@@ -583,7 +583,7 @@ export const STREAM_SERVERS: StreamServer[] = [
       const sec = Math.floor(Math.max(0, startSeconds));
       const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
       const langCode = LANG_CODE_MAP[_lang] || _lang;
-      const langParam = langCode && langCode !== 'all' ? `&ds_lang=${langCode}&lang=${langCode}&audio=${langCode}` : '&ds_lang=all';
+      const langParam = langCode && langCode !== 'all' ? `&ds_lang=${langCode}&lang=${langCode}&audio=${langCode}&preferred_audio=${langCode}&dub=${langCode}` : '&ds_lang=hi&lang=hi&audio=hi';
       const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
       return isTv
         ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&autoplay=1${langParam}${qualParam}${timeParam}`
@@ -600,7 +600,7 @@ export const STREAM_SERVERS: StreamServer[] = [
     getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
       const langCode = LANG_CODE_MAP[_lang] || _lang;
-      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}&ds_lang=${langCode}` : '';
+      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}&ds_lang=${langCode}&dub=${langCode}` : '&audio=hi&lang=hi&ds_lang=hi&dub=hi';
       const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
       const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
       return isTv
@@ -619,7 +619,7 @@ export const STREAM_SERVERS: StreamServer[] = [
       const sec = Math.floor(Math.max(0, startSeconds));
       const timeParam = sec > 0 ? `&start=${sec}&t=${sec}&startAt=${sec}` : '';
       const langCode = LANG_CODE_MAP[_lang] || _lang;
-      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}` : '';
+      const langParam = langCode && langCode !== 'all' ? `&audio=${langCode}&lang=${langCode}&ds_lang=${langCode}&preferred_audio=${langCode}` : '';
       const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
       return isTv
         ? `https://vidlink.pro/tv/${id}/${s}/${e}?autoplay=true${langParam}${qualParam}${timeParam}`
@@ -636,7 +636,7 @@ export const STREAM_SERVERS: StreamServer[] = [
     getUrl: (id, isTv, s = 1, e = 1, _lang = 'hindi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
       const langCode = LANG_CODE_MAP[_lang] || _lang;
-      const langParam = langCode && langCode !== 'all' ? `&lang=${langCode}&audio=${langCode}` : '';
+      const langParam = langCode && langCode !== 'all' ? `&lang=${langCode}&audio=${langCode}&ds_lang=${langCode}&dub=${langCode}` : '&lang=hi&audio=hi&ds_lang=hi';
       const qualParam = quality && quality !== 'auto' ? `&quality=${quality}` : '';
       const timeParam = sec > 0 ? `&start=${sec}&t=${sec}` : '';
       return isTv

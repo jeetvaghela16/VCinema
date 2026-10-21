@@ -274,12 +274,13 @@ export function useTheatre(theatreId: string | undefined) {
     [theatreId, isHost]
   );
 
-  // Change Stream Server (Host Only)
+  // Change Stream Server (Host Only - syncs server and optional audio language atomically)
   const changeServer = useCallback(
-    async (streamServerId: string) => {
+    async (streamServerId: string, audioLanguage?: string) => {
       if (!theatreId || !isHost) return;
       await updatePlayback(theatreId, {
         streamServerId,
+        ...(audioLanguage ? { audioLanguage } : {}),
       });
     },
     [theatreId, isHost]
@@ -339,6 +340,15 @@ export function useTheatre(theatreId: string | undefined) {
     await clearChatMessages(theatreId);
   }, [theatreId, isHost]);
 
+  // Host Authority: Low-level playback attribute update (e.g. true movie duration or fine sync)
+  const updateRoomPlayback = useCallback(
+    async (playbackUpdates: Partial<LiveTheatreRoom['playback']>) => {
+      if (!theatreId || !isHost) return;
+      await updatePlayback(theatreId, playbackUpdates);
+    },
+    [theatreId, isHost]
+  );
+
   return {
     room,
     participants,
@@ -365,5 +375,6 @@ export function useTheatre(theatreId: string | undefined) {
     endRoom,
     clearChat,
     sendMessage,
+    updateRoomPlayback,
   };
 }
