@@ -7,7 +7,6 @@ import {
 } from '../features/content/ContentSections';
 import WebSeriesSection from '../features/content/WebSeriesSection';
 import TheatreSection from '../features/theatre/TheatreSection';
-import MiraCompanion from '../features/companion/MiraCompanion';
 import {
   fetchTrendingMovies,
   fetchPopularMovies,
@@ -94,7 +93,6 @@ export default function Home() {
         <PopularMovies movies={popular} />
         <WebSeriesSection series={series} />
         <TheatreSection />
-        <MiraCompanion />
       </div>
     </div>
   );

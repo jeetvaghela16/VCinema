@@ -43,7 +43,7 @@ VCinema/
 │   │   └── layout/         # Navbar, Footer
 │   ├── context/            # AuthContext & React Context definitions
 │   ├── data/               # Authorized movie, series, and theatre catalog data
-│   ├── features/           # Hero, companion (Mira AI teaser), and catalogue sections
+│   ├── features/           # Hero, content, and catalogue sections
 │   ├── hooks/              # useAuth, useTheatre, useIntersectionObserver, useReducedMotion
 │   ├── layouts/            # MainLayout (header, outlet, footer)
 │   ├── lib/
@@ -165,8 +165,7 @@ Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 - [x] **Step 1.5: Cinematic Polish** — Atmospheric poster compositions, mobile hero, custom aesthetics.
 - [x] **Step 2: Firebase Authentication** — Email/password, Google OAuth, password reset, Firestore profile sync.
 - [x] **Step 3: Virtual Theatres & Real-Time Sync** — Live rooms, 6-character room codes, host playback sync, audience presence, in-room chat.
-- [ ] **Step 4: Real Video Streaming Integration** — HLS / WebRTC synchronized video player engine.
-- [ ] **Step 5: Mira AI Cinema Companion** — AI concierge for personalized recommendations & film discussions.
+- [x] **Step 4: Global TMDB Catalog & Streaming Engine** — Real streaming video player, multi-server switcher, dubbed audio options.
 
 ---
 
