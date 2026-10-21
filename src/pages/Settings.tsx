@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../utils/cn';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../context/ThemeContext';
 import { updateUserProfile } from '../services/userService';
 import { secureLogger } from '../utils/secureLogger';
 import { getVideoQualityPreference, setVideoQualityPreference } from '../utils/storageGuard';
@@ -65,8 +66,19 @@ export default function Settings() {
   const [isSavingName, setIsSavingName] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Appearance
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // Appearance & Theme State
+  const { theme, setTheme } = useTheme();
+  const [themeToast, setThemeToast] = useState<string | null>(null);
+
+  const handleThemeChange = (newTheme: 'dark' | 'light') => {
+    setTheme(newTheme);
+    setThemeToast(
+      newTheme === 'light'
+        ? '☀️ Switched to Light Theme (Gallery Mode)'
+        : '🌑 Switched to Dark Theme (Cinema Standard)'
+    );
+    setTimeout(() => setThemeToast(null), 3000);
+  };
 
   // Playback
   const [quality, setQuality] = useState(() => getVideoQualityPreference());
@@ -109,7 +121,15 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen pt-[72px]">
+    <div className="min-h-screen pt-[72px] relative">
+      {/* Theme Transition Toast Notification */}
+      {themeToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-vc-bg-card border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold px-5 py-2.5 rounded-[4px] shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-md animate-slide-down flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-vc-gold animate-ping" />
+          <span>{themeToast}</span>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-6 md:px-10 pt-12 pb-20">
         <div className="section-divider mb-0">
           <h1 className="font-sans text-[11px] font-semibold tracking-[0.25em] text-vc-gold uppercase">
@@ -233,6 +253,50 @@ export default function Settings() {
                   </div>
                 </div>
 
+                {/* Visual Theme Quick Setting */}
+                <div className="space-y-3 pt-4 border-t border-vc-border/60">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-vc-text-muted uppercase tracking-widest">
+                        Visual Theme
+                      </p>
+                      <p className="text-xs text-vc-text-muted mt-0.5">
+                        Current mode: <strong className="text-vc-text-primary capitalize">{theme} ({theme === 'light' ? 'Gallery Daylight' : 'Cinema Standard'})</strong>
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleThemeChange('dark')}
+                        className={cn(
+                          'px-3.5 py-2 rounded-[4px] text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5',
+                          theme === 'dark'
+                            ? 'border-vc-gold bg-vc-gold/15 text-vc-gold font-semibold shadow-[0_0_10px_rgba(198,167,106,0.15)]'
+                            : 'border-vc-border text-vc-text-muted hover:border-vc-border-strong hover:text-vc-text-primary hover:bg-vc-bg-card'
+                        )}
+                        aria-pressed={theme === 'dark'}
+                      >
+                        <span>🌑</span>
+                        <span>Dark</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleThemeChange('light')}
+                        className={cn(
+                          'px-3.5 py-2 rounded-[4px] text-xs font-medium border transition-all cursor-pointer flex items-center gap-1.5',
+                          theme === 'light'
+                            ? 'border-vc-gold bg-vc-gold/15 text-vc-gold font-semibold shadow-[0_0_10px_rgba(198,167,106,0.15)]'
+                            : 'border-vc-border text-vc-text-muted hover:border-vc-border-strong hover:text-vc-text-primary hover:bg-vc-bg-card'
+                        )}
+                        aria-pressed={theme === 'light'}
+                      >
+                        <span>☀️</span>
+                        <span>Light</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Sign Out Action */}
                 <div className="pt-4 border-t border-vc-border/60">
                   <button
@@ -249,31 +313,66 @@ export default function Settings() {
             {/* ── SECTION: Appearance ── */}
             {activeSection === 'Appearance' && (
               <div>
-                <h3 className="font-serif text-xl text-vc-text-primary mb-6">Appearance</h3>
+                <h3 className="font-serif text-xl text-vc-text-primary mb-2 font-semibold">Appearance & Atmosphere</h3>
+                <p className="text-xs text-vc-text-muted mb-6">
+                  Customize the visual aesthetic and lighting atmosphere of the VCinema application.
+                </p>
+
                 <div className="mb-6">
                   <p className="text-xs font-semibold text-vc-text-muted uppercase tracking-widest mb-3">
-                    Theme
+                    Auditorium Lighting Theme
                   </p>
-                  <div className="flex gap-3">
-                    {(['dark', 'light'] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setTheme(t)}
-                        className={cn(
-                          'px-6 py-2.5 rounded-[4px] text-sm font-medium capitalize border transition-all',
-                          theme === t
-                            ? 'border-vc-gold bg-vc-gold/10 text-vc-gold font-semibold'
-                            : 'border-vc-border text-vc-text-muted hover:border-vc-border-strong',
-                        )}
-                        aria-pressed={theme === t}
-                      >
-                        {t === 'dark' ? '🌑 Dark (Cinema Standard)' : '☀️ Light'}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => handleThemeChange('dark')}
+                      className={cn(
+                        'flex items-start gap-3.5 p-4 rounded-[6px] border text-left transition-all cursor-pointer group',
+                        theme === 'dark'
+                          ? 'border-vc-gold bg-vc-gold/10 text-vc-gold font-semibold ring-1 ring-vc-gold/40 shadow-[0_0_20px_rgba(198,167,106,0.15)]'
+                          : 'border-vc-border text-vc-text-muted hover:border-vc-border-strong hover:bg-vc-bg-card/50'
+                      )}
+                      aria-pressed={theme === 'dark'}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-[#11110f] border border-vc-border flex items-center justify-center text-lg flex-shrink-0 shadow-inner">
+                        🌑
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-vc-text-primary group-hover:text-vc-gold transition-colors">
+                          Dark (Cinema Standard)
+                        </p>
+                        <p className="text-xs text-vc-text-muted mt-0.5 leading-relaxed">
+                          Original velvet darkroom aesthetic engineered for low-light digital auditorium viewing.
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleThemeChange('light')}
+                      className={cn(
+                        'flex items-start gap-3.5 p-4 rounded-[6px] border text-left transition-all cursor-pointer group',
+                        theme === 'light'
+                          ? 'border-vc-gold bg-vc-gold/10 text-vc-gold font-semibold ring-1 ring-vc-gold/40 shadow-[0_0_20px_rgba(198,167,106,0.15)]'
+                          : 'border-vc-border text-vc-text-muted hover:border-vc-border-strong hover:bg-vc-bg-card/50'
+                      )}
+                      aria-pressed={theme === 'light'}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-[#edebe4] border border-vc-border flex items-center justify-center text-lg flex-shrink-0 shadow-sm">
+                        ☀️
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-vc-text-primary group-hover:text-vc-gold transition-colors">
+                          Light (Gallery Daylight)
+                        </p>
+                        <p className="text-xs text-vc-text-muted mt-0.5 leading-relaxed">
+                          Crisp, warm ivory editorial aesthetic tailored for well-lit rooms and daytime browsing.
+                        </p>
+                      </div>
+                    </button>
                   </div>
-                  <p className="text-xs text-vc-text-muted mt-2">
-                    VCinema is engineered for low-light digital auditorium viewing.
+                  <p className="text-xs text-vc-text-muted mt-3">
+                    Your theme preference is automatically remembered and applied to all cinema sessions.
                   </p>
                 </div>
               </div>

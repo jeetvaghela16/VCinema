@@ -73,14 +73,13 @@ export default function Login() {
         style={{
           background: `
             radial-gradient(ellipse 70% 60% at 50% 30%, rgba(198, 167, 106, 0.08) 0%, transparent 60%),
-            radial-gradient(circle at 80% 80%, rgba(111, 32, 40, 0.12) 0%, transparent 50%),
-            linear-gradient(180deg, #080807 0%, #0d0c0a 100%)
+            radial-gradient(circle at 80% 80%, rgba(111, 32, 40, 0.08) 0%, transparent 50%)
           `,
         }}
       />
 
       {/* Main Login Card / Cinema Admission Ticket */}
-      <div className="relative z-10 w-full max-w-md glass-panel rounded-[6px] border border-vc-border/80 shadow-[0_24px_60px_rgba(0,0,0,0.8)] p-8 sm:p-10">
+      <div className="relative z-10 w-full max-w-md glass-panel rounded-[6px] border border-vc-border/80 shadow-[0_20px_50px_rgba(0,0,0,0.08)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.8)] p-8 sm:p-10">
         {/* Header Monogram & Branding */}
         <div className="text-center mb-8">
           <Link
@@ -97,7 +96,7 @@ export default function Login() {
           </Link>
 
           <h1 className="font-serif text-2xl sm:text-3xl text-vc-text-primary font-semibold tracking-wide">
-            Enter The Cinema
+            Enter The VCinema
           </h1>
           <p className="text-xs text-vc-text-muted mt-1.5 leading-relaxed">
             Sign in to access your private auditoriums, synchronized watch parties, and personal watchlist.
@@ -143,7 +142,7 @@ export default function Login() {
               htmlFor="login-email"
               className="block text-[11px] font-mono tracking-widest text-vc-text-muted uppercase mb-1.5"
             >
-              Cinema Pass Email
+              Login Email
             </label>
             <input
               id="login-email"
@@ -154,7 +153,7 @@ export default function Login() {
               autoComplete="email"
               required
               disabled={isSubmitting}
-              className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder-vc-text-muted/40 focus:border-vc-gold/60 focus:outline-none transition-colors shadow-inner"
+              className="w-full bg-vc-bg-base/80 focus:bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder:text-vc-text-muted/50 focus:border-vc-gold/60 focus:outline-none transition-colors"
             />
           </div>
 
@@ -165,13 +164,13 @@ export default function Login() {
                 htmlFor="login-password"
                 className="block text-[11px] font-mono tracking-widest text-vc-text-muted uppercase"
               >
-                Passkey
+                Password
               </label>
               <Link
                 to="/forgot-password"
                 className="text-[11px] text-vc-gold-dim hover:text-vc-gold transition-colors"
               >
-                Forgot keycode?
+                Forgot password?
               </Link>
             </div>
             <input
@@ -183,7 +182,7 @@ export default function Login() {
               autoComplete="current-password"
               required
               disabled={isSubmitting}
-              className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder-vc-text-muted/40 focus:border-vc-gold/60 focus:outline-none transition-colors shadow-inner"
+              className="w-full bg-vc-bg-base/80 focus:bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder:text-vc-text-muted/50 focus:border-vc-gold/60 focus:outline-none transition-colors"
             />
           </div>
 
@@ -200,7 +199,7 @@ export default function Login() {
                   <span>Admitting...</span>
                 </>
               ) : (
-                <span>Admit & Sign In</span>
+                <span>Sign In</span>
               )}
             </button>
           </div>
@@ -211,7 +210,7 @@ export default function Login() {
           <div className="absolute inset-0 flex items-center" aria-hidden="true">
             <div className="w-full border-t border-vc-border/70" />
           </div>
-          <span className="relative px-3 bg-[#131210] text-[10px] font-mono tracking-widest text-vc-text-muted uppercase">
+          <span className="relative px-3 bg-vc-bg-card text-[10px] font-mono tracking-widest text-vc-text-muted uppercase">
             Or Authenticate With
           </span>
         </div>
@@ -221,7 +220,7 @@ export default function Login() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isSubmitting}
-          className="w-full py-3 rounded-[4px] border border-vc-border hover:border-vc-gold/40 bg-vc-bg-card/70 hover:bg-vc-bg-card text-vc-text-primary text-xs font-medium transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+          className="w-full py-3 rounded-[4px] border border-vc-border hover:border-vc-gold/50 bg-vc-bg-base/60 hover:bg-vc-bg-base text-vc-text-primary text-xs font-medium transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group shadow-sm"
         >
           {/* Google Icon SVG */}
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">

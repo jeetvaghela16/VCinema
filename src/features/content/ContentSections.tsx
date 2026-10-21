@@ -12,7 +12,7 @@ interface SectionHeaderProps {
 
 export function CinemaSectionDivider({ hallNumber, title, subtitle }: SectionHeaderProps) {
   return (
-    <div className="relative mb-8 pt-4">
+    <div className="relative mb-4 sm:mb-5 pt-0.5">
       {/* Soft ceiling recessed spotlight glow */}
       <div
         className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-12 pointer-events-none opacity-25"
@@ -22,7 +22,7 @@ export function CinemaSectionDivider({ hallNumber, title, subtitle }: SectionHea
         aria-hidden="true"
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-vc-border/70 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-vc-border/70 pb-2.5">
         <div className="flex items-center gap-3">
           {/* Hall / Wing Indicator */}
           <span className="text-[9px] font-mono tracking-[0.25em] text-vc-gold px-2 py-0.5 rounded-[2px] bg-vc-gold/[0.08] border border-vc-gold/25 uppercase">
@@ -50,7 +50,7 @@ export function NowShowing({ movies }: { movies: Movie[] }) {
     <section
       ref={ref}
       className={cn(
-        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-12 transition-all duration-700',
+        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-4 sm:py-5 transition-all duration-700',
         visible ? 'animate-slide-up opacity-100' : 'opacity-0 translate-y-6',
       )}
       aria-label="Now Showing in Theatres"
@@ -62,7 +62,7 @@ export function NowShowing({ movies }: { movies: Movie[] }) {
       />
 
       {/* Responsive Horizontal Scroll on Mobile, 6-col Grid on Desktop */}
-      <div className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 -mx-1 md:overflow-visible md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-4.5 scrollbar-thin">
+      <div className="flex gap-4 overflow-x-auto pb-2 pt-1 px-1 -mx-1 md:overflow-visible md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-4.5 scrollbar-thin">
         {movies.map((movie, index) => (
           <div
             key={movie.id}
@@ -84,7 +84,7 @@ export function ContinueWatching({ movies }: { movies: Movie[] }) {
     <section
       ref={ref}
       className={cn(
-        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-12 transition-all duration-700',
+        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-4 sm:py-5 transition-all duration-700',
         visible ? 'animate-slide-up opacity-100' : 'opacity-0 translate-y-6',
       )}
       aria-label="Resume Screening"
@@ -113,7 +113,7 @@ export function PopularMovies({ movies }: { movies: Movie[] }) {
     <section
       ref={ref}
       className={cn(
-        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-12 transition-all duration-700',
+        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-4 sm:py-5 transition-all duration-700',
         visible ? 'animate-slide-up opacity-100' : 'opacity-0 translate-y-6',
       )}
       aria-label="Popular Feature Films"

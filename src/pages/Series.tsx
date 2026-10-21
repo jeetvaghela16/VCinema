@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import SeriesCard from '../components/cards/SeriesCard';
-import { seriesList as localSeries } from '../data/series';
 import {
   fetchTrendingSeries,
   searchSeries,
@@ -49,15 +48,11 @@ export default function Series() {
         }
       }
 
-      const allMerged = genre === 'All'
-        ? [...fetched, ...localSeries]
-        : fetched;
-
-      const unique = Array.from(new Map(allMerged.map((s) => [s.id, s])).values());
+      const unique = Array.from(new Map(fetched.map((s) => [s.id, s])).values());
       setDisplaySeries(unique);
     } catch (err) {
       secureLogger.error('Error loading series:', err);
-      setDisplaySeries([...CURATED_GLOBAL_SERIES, ...localSeries]);
+      setDisplaySeries(CURATED_GLOBAL_SERIES);
     } finally {
       setIsLoading(false);
     }

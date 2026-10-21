@@ -64,7 +64,7 @@ export default function CreateTheatre() {
   const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(false);
 
   // Selected Presentation State
-  const [selectedMedia, setSelectedMedia] = useState<Movie | Series>(() => {
+  const [selectedMedia, setSelectedMedia] = useState<Movie | Series | null>(() => {
     if (locationState?.preselectedItem) return locationState.preselectedItem;
     if (locationState?.preselectedMovieId) {
       const match =
@@ -72,7 +72,7 @@ export default function CreateTheatre() {
         movies.find((m) => m.id === locationState.preselectedMovieId);
       if (match) return match;
     }
-    return CURATED_GLOBAL_MOVIES[0];
+    return null;
   });
 
   // Audio & Server Presets
@@ -217,6 +217,11 @@ export default function CreateTheatre() {
       return;
     }
 
+    if (!selectedMedia && !(activeCategory === 'custom' && customUrl.trim())) {
+      setErrorMessage('Please select a film or series from the catalog, or enter a custom stream URL.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -236,7 +241,7 @@ export default function CreateTheatre() {
           audioLanguage: selectedAudioLang,
           streamServerId: selectedServer,
         };
-      } else {
+      } else if (selectedMedia) {
         mediaData = {
           id: selectedMedia.id,
           title: selectedMedia.title,
@@ -261,6 +266,10 @@ export default function CreateTheatre() {
             ? 'trailer'
             : 'embed',
         };
+      } else {
+        setErrorMessage('Please select a cinema title to project.');
+        setIsSubmitting(false);
+        return;
       }
 
       const room = await createTheatreRoom(
@@ -268,7 +277,7 @@ export default function CreateTheatre() {
           name: theatreName,
           format: selectedType,
           maxViewers,
-          movieId: selectedMedia.id,
+          movieId: mediaData.id,
           isPasswordProtected: usePassword,
           password: usePassword ? password : '',
           mediaData,
@@ -499,7 +508,7 @@ export default function CreateTheatre() {
                     onChange={handleSliderChange}
                     className="w-full h-1.5 bg-vc-bg-base rounded-full appearance-none cursor-pointer accent-vc-gold focus:outline-none focus:ring-1 focus:ring-vc-gold/50"
                     style={{
-                      background: `linear-gradient(to right, #C6A76A 0%, #C6A76A ${sliderPercentage}%, rgba(255,255,255,0.08) ${sliderPercentage}%, rgba(255,255,255,0.08) 100%)`,
+                      background: `linear-gradient(to right, #C6A76A 0%, #C6A76A ${sliderPercentage}%, var(--vc-border) ${sliderPercentage}%, var(--vc-border) 100%)`,
                     }}
                     aria-label={`Auditorium Capacity: ${maxViewers} viewers`}
                   />
@@ -710,9 +719,13 @@ export default function CreateTheatre() {
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          setSelectedMedia(item);
-                          setSelectedSeason(1);
-                          setSelectedEpisode(1);
+                          if (isSelected) {
+                            setSelectedMedia(null);
+                          } else {
+                            setSelectedMedia(item);
+                            setSelectedSeason(1);
+                            setSelectedEpisode(1);
+                          }
                         }}
                         className={cn(
                           'text-left p-2 rounded-[3px] border transition-all duration-150 flex flex-col group relative overflow-hidden',
@@ -744,8 +757,9 @@ export default function CreateTheatre() {
                           </div>
 
                           <div className="absolute bottom-1 right-1">
-                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-[1px] bg-black/80 text-white font-bold">
-                              ★ {item.rating}
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-[1px] bg-black/85 text-white font-bold flex items-center gap-1 border border-white/10">
+                              <span className="text-[#F5C518] text-[8px] font-bold">IMDb</span>
+                              <span>★ {item.rating}</span>
                             </span>
                           </div>
 
@@ -799,16 +813,28 @@ export default function CreateTheatre() {
 
                 {/* Information */}
                 <div className="flex-1 min-w-0 relative z-10 text-center sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start gap-2 mb-1 flex-wrap">
-                    <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-vc-gold text-black font-bold">
-                      {isSelectedTv ? 'Web Series' : 'Cinema Feature'}
-                    </span>
-                    <span className="text-[10px] font-mono text-vc-gold border border-vc-gold/30 px-2 py-0.5 rounded-[2px] bg-vc-gold/10">
-                      ★ {selectedMedia.rating} &middot; {selectedMedia.year}
-                    </span>
-                    <span className="text-[10px] font-mono text-vc-text-muted">
-                      {selectedMedia.genre}
-                    </span>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                      <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-vc-gold text-black font-bold">
+                        {isSelectedTv ? 'Web Series' : 'Cinema Feature'}
+                      </span>
+                      <span className="text-[10px] font-mono text-vc-gold border border-vc-gold/30 px-2 py-0.5 rounded-[2px] bg-vc-gold/10 flex items-center gap-1">
+                        <span className="text-[#F5C518] font-bold">IMDb</span>
+                        <span>★   {selectedMedia.rating} &middot; {selectedMedia.year}</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-vc-text-muted">
+                        {selectedMedia.genre}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMedia(null)}
+                      className="text-[10px] font-mono text-vc-text-muted hover:text-red-400 transition-colors border border-white/10 hover:border-red-400/30 px-2 py-0.5 rounded-[2px] bg-black/40 flex items-center gap-1"
+                      title="Clear selection"
+                    >
+                      ✕ Deselect
+                    </button>
                   </div>
 
                   <h3 className="font-serif text-lg sm:text-xl font-bold text-vc-text-primary mb-1 truncate">
@@ -924,8 +950,8 @@ export default function CreateTheatre() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter 4-to-12 character passkey"
-                  aria-label="Room admission password"
+                  placeholder="Enter private screening passcode"
+                  aria-label="Private screening passcode"
                   className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder-vc-text-muted/40 focus:border-vc-gold/60 focus:outline-none transition-colors"
                 />
               </div>

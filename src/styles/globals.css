@@ -2,6 +2,8 @@
 
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, [data-theme="dark"], .dark *));
+
 @theme {
   --color-vc-bg-base: var(--vc-bg-base);
   --color-vc-bg-elevated: var(--vc-bg-elevated);
@@ -17,9 +19,11 @@
 }
 
 /* ============================================================
-   VCinema Design Tokens
+   VCinema Design Tokens (Dark / Cinema Standard)
    ============================================================ */
-:root {
+:root,
+[data-theme="dark"],
+html.dark {
   --vc-bg-base: #080807;
   --vc-bg-elevated: #11110f;
   --vc-bg-card: #181714;
@@ -27,10 +31,32 @@
   --vc-text-muted: #a9a39a;
   --vc-gold: #c6a76a;
   --vc-gold-dim: #8a7248;
+  --vc-gold-bright: #e2c98a;
   --vc-burgundy: #6f2028;
   --vc-border: rgba(166, 157, 148, 0.12);
   --vc-border-strong: rgba(198, 167, 106, 0.25);
   --navbar-height: 72px;
+  color-scheme: dark;
+}
+
+/* ============================================================
+   VCinema Design Tokens (Light Theme / Gallery Standard)
+   ============================================================ */
+[data-theme="light"],
+html.light {
+  --vc-bg-base: #f7f6f2;
+  --vc-bg-elevated: #edebe4;
+  --vc-bg-card: #ffffff;
+  --vc-text-primary: #151413;
+  --vc-text-muted: #615c54;
+  --vc-gold: #a1782a;
+  --vc-gold-dim: #78581a;
+  --vc-gold-bright: #bf923c;
+  --vc-burgundy: #801d29;
+  --vc-border: rgba(40, 35, 30, 0.12);
+  --vc-border-strong: rgba(161, 120, 42, 0.38);
+  --navbar-height: 72px;
+  color-scheme: light;
 }
 
 /* ============================================================
@@ -348,3 +374,499 @@ video:-moz-full-screen {
   height: 100vh !important;
   border: none !important;
 }
+
+/* ============================================================
+   Comprehensive Light / White Theme Engine
+   ============================================================ */
+html.light,
+[data-theme="light"] {
+  background-color: var(--vc-bg-base);
+  color: var(--vc-text-primary);
+}
+
+/* Glass Panels & Modals */
+html.light .glass-panel,
+[data-theme="light"] .glass-panel {
+  background: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(40, 35, 30, 0.12) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  color: var(--vc-text-primary) !important;
+}
+
+/* Cinema Gradient Text */
+html.light .cinema-gradient-text,
+[data-theme="light"] .cinema-gradient-text {
+  background: linear-gradient(135deg, #151413 25%, #9e7324 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hardcoded Dark Background Class Remapping in Light Mode */
+html.light .bg-\[\#050504\],
+[data-theme="light"] .bg-\[\#050504\],
+html.light .bg-\[\#080807\],
+[data-theme="light"] .bg-\[\#080807\],
+html.light .bg-\[\#08080a\],
+[data-theme="light"] .bg-\[\#08080a\],
+html.light .bg-\[\#0d0d0b\],
+[data-theme="light"] .bg-\[\#0d0d0b\],
+html.light .bg-\[\#090908\],
+[data-theme="light"] .bg-\[\#090908\],
+html.light .bg-\[\#0c0b09\],
+[data-theme="light"] .bg-\[\#0c0b09\],
+html.light .bg-\[\#11110f\],
+[data-theme="light"] .bg-\[\#11110f\],
+html.light .bg-\[\#131210\],
+[data-theme="light"] .bg-\[\#131210\],
+html.light .bg-\[\#181714\],
+[data-theme="light"] .bg-\[\#181714\] {
+  background-color: var(--vc-bg-base) !important;
+  color: var(--vc-text-primary);
+}
+
+/* Specific Theatre Header & Drawer Styling */
+html.light header.bg-black\/90,
+[data-theme="light"] header.bg-black\/90,
+html.light header.bg-black\/80,
+[data-theme="light"] header.bg-black\/80,
+html.light header.theatre-header,
+[data-theme="light"] header.theatre-header {
+  background-color: rgba(237, 235, 228, 0.96) !important;
+  border-bottom: none !important;
+  color: var(--vc-text-primary) !important;
+}
+
+html.light aside.bg-black\/60,
+[data-theme="light"] aside.bg-black\/60,
+html.light aside.bg-black\/80,
+[data-theme="light"] aside.bg-black\/80,
+html.light aside.theatre-drawer,
+[data-theme="light"] aside.theatre-drawer {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-left: 1px solid rgba(40, 35, 30, 0.12) !important;
+  color: var(--vc-text-primary) !important;
+}
+
+/* Semi-transparent dark overlay elements in Theatre & Hero */
+html.light .bg-black\/60:not(.video-container *):not(.cinema-screen-viewport *),
+[data-theme="light"] .bg-black\/60:not(.video-container *):not(.cinema-screen-viewport *),
+html.light .bg-black\/40:not(.video-container *):not(.cinema-screen-viewport *),
+[data-theme="light"] .bg-black\/40:not(.video-container *):not(.cinema-screen-viewport *) {
+  background-color: rgba(237, 235, 228, 0.75) !important;
+}
+
+/* ============================================================
+   Cinema Screen Viewport & High-Contrast Overlay Badges
+   Guaranteed Pure White and Perfect Contrast in BOTH Dark and Light Mode
+   ============================================================ */
+
+/* Cinema Screen Container remains pitch black for movie projection in both themes */
+.cinema-screen-viewport,
+html.dark .cinema-screen-viewport,
+[data-theme="dark"] .cinema-screen-viewport,
+html.light .cinema-screen-viewport,
+[data-theme="light"] .cinema-screen-viewport,
+.cinema-screen-viewport iframe,
+html.dark .cinema-screen-viewport iframe,
+[data-theme="dark"] .cinema-screen-viewport iframe,
+html.light .cinema-screen-viewport iframe,
+[data-theme="light"] .cinema-screen-viewport iframe,
+.cinema-screen-viewport video,
+html.dark .cinema-screen-viewport video,
+[data-theme="dark"] .cinema-screen-viewport video,
+html.light .cinema-screen-viewport video,
+[data-theme="light"] .cinema-screen-viewport video {
+  background-color: #000000 !important;
+}
+
+/* Keep-White utility class: Always pure white in both dark and light modes */
+.keep-white,
+html.dark .keep-white,
+[data-theme="dark"] .keep-white,
+html.light .keep-white,
+[data-theme="light"] .keep-white {
+  color: #ffffff !important;
+}
+
+/* Ensure text inside the Cinema Screen Viewport is crisp white in both dark and light mode */
+.cinema-screen-viewport .keep-white,
+html.dark .cinema-screen-viewport .keep-white,
+[data-theme="dark"] .cinema-screen-viewport .keep-white,
+html.light .cinema-screen-viewport .keep-white,
+[data-theme="light"] .cinema-screen-viewport .keep-white,
+.cinema-screen-viewport .text-white,
+html.dark .cinema-screen-viewport .text-white,
+[data-theme="dark"] .cinema-screen-viewport .text-white,
+html.light .cinema-screen-viewport .text-white,
+[data-theme="light"] .cinema-screen-viewport .text-white {
+  color: #ffffff !important;
+}
+
+.cinema-screen-viewport .text-white\/90,
+html.dark .cinema-screen-viewport .text-white\/90,
+[data-theme="dark"] .cinema-screen-viewport .text-white\/90,
+html.light .cinema-screen-viewport .text-white\/90,
+[data-theme="light"] .cinema-screen-viewport .text-white\/90 {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.cinema-screen-viewport .text-white\/80,
+html.dark .cinema-screen-viewport .text-white\/80,
+[data-theme="dark"] .cinema-screen-viewport .text-white\/80,
+html.light .cinema-screen-viewport .text-white\/80,
+[data-theme="light"] .cinema-screen-viewport .text-white\/80 {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.cinema-screen-viewport .text-white\/70,
+html.dark .cinema-screen-viewport .text-white\/70,
+[data-theme="dark"] .cinema-screen-viewport .text-white\/70,
+html.light .cinema-screen-viewport .text-white\/70,
+[data-theme="light"] .cinema-screen-viewport .text-white\/70 {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+/* Cinema Status Badge: PROJECTION LIVE / PAUSED pill badge in both dark and light mode */
+.cinema-status-badge,
+html.dark .cinema-status-badge,
+[data-theme="dark"] .cinema-status-badge,
+html.light .cinema-status-badge,
+[data-theme="light"] .cinema-status-badge {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+.cinema-status-badge span,
+html.dark .cinema-status-badge span,
+[data-theme="dark"] .cinema-status-badge span,
+html.light .cinema-status-badge span,
+[data-theme="light"] .cinema-status-badge span {
+  color: #ffffff !important;
+}
+
+/* Paused state dot in both dark and light mode */
+.cinema-status-dot-paused,
+html.dark .cinema-status-dot-paused,
+[data-theme="dark"] .cinema-status-dot-paused,
+html.light .cinema-status-dot-paused,
+[data-theme="light"] .cinema-status-dot-paused {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Transparent Chips & Pill Buttons in Light Mode */
+html.light .bg-white\/5,
+[data-theme="light"] .bg-white\/5 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .bg-white\/10,
+[data-theme="light"] .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.07) !important;
+}
+
+html.light .bg-white\/15,
+[data-theme="light"] .bg-white\/15 {
+  background-color: rgba(0, 0, 0, 0.10) !important;
+}
+
+html.light .border-white\/5,
+[data-theme="light"] .border-white\/5 {
+  border-color: rgba(40, 35, 30, 0.08) !important;
+}
+
+html.light .border-white\/10,
+[data-theme="light"] .border-white\/10 {
+  border-color: rgba(40, 35, 30, 0.12) !important;
+}
+
+html.light .border-white\/15,
+[data-theme="light"] .border-white\/15 {
+  border-color: rgba(40, 35, 30, 0.16) !important;
+}
+
+html.light .border-white\/20,
+[data-theme="light"] .border-white\/20 {
+  border-color: rgba(40, 35, 30, 0.20) !important;
+}
+
+html.light .border-white\/30,
+[data-theme="light"] .border-white\/30 {
+  border-color: rgba(40, 35, 30, 0.28) !important;
+}
+
+/* Text Adaptations for Light Mode */
+html.light .text-white:not(.keep-white):not(.bg-vc-gold *):not(.bg-red-500 *):not(.bg-emerald-500 *):not(.video-container *):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white:not(.keep-white):not(.bg-vc-gold *):not(.bg-red-500 *):not(.bg-emerald-500 *):not(.video-container *):not(.cinema-screen-viewport *) {
+  color: #151413 !important;
+}
+
+html.light .text-white\/90:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/90:not(.keep-white):not(.cinema-screen-viewport *),
+html.light .text-white\/80:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/80:not(.keep-white):not(.cinema-screen-viewport *) {
+  color: #24221f !important;
+}
+
+html.light .text-white\/70:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/70:not(.keep-white):not(.cinema-screen-viewport *),
+html.light .text-white\/60:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/60:not(.keep-white):not(.cinema-screen-viewport *) {
+  color: #575249 !important;
+}
+
+html.light .text-white\/50:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/50:not(.keep-white):not(.cinema-screen-viewport *),
+html.light .text-white\/40:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/40:not(.keep-white):not(.cinema-screen-viewport *) {
+  color: #787268 !important;
+}
+
+html.light .text-white\/30:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/30:not(.keep-white):not(.cinema-screen-viewport *),
+html.light .text-white\/20:not(.keep-white):not(.cinema-screen-viewport *),
+[data-theme="light"] .text-white\/20:not(.keep-white):not(.cinema-screen-viewport *) {
+  color: #9c9588 !important;
+}
+
+/* Hover States in Light Mode */
+html.light .hover\:text-white:hover,
+[data-theme="light"] .hover\:text-white:hover {
+  color: #151413 !important;
+}
+
+html.light .hover\:bg-white\/5:hover,
+[data-theme="light"] .hover\:bg-white\/5:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light .hover\:bg-white\/10:hover,
+[data-theme="light"] .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .hover\:bg-white\/15:hover,
+[data-theme="light"] .hover\:bg-white\/15:hover {
+  background-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html.light .hover\:border-white\/20:hover,
+[data-theme="light"] .hover\:border-white\/20:hover,
+html.light .hover\:border-white\/25:hover,
+[data-theme="light"] .hover\:border-white\/25:hover,
+html.light .hover\:border-white\/30:hover,
+[data-theme="light"] .hover\:border-white\/30:hover {
+  border-color: rgba(40, 35, 30, 0.25) !important;
+}
+
+/* Inputs and Forms in Light Mode */
+html.light input::placeholder,
+[data-theme="light"] input::placeholder,
+html.light textarea::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #8c857b !important;
+}
+
+/* Light Theme Scrollbars */
+html.light ::-webkit-scrollbar-track,
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f0eeea;
+}
+
+html.light ::-webkit-scrollbar-thumb,
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #d8d4cb;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+html.light ::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--vc-gold);
+}
+
+/* Light Theme Range Sliders */
+html.light input[type="range"]::-webkit-slider-thumb,
+[data-theme="light"] input[type="range"]::-webkit-slider-thumb {
+  border: 2px solid #ffffff;
+  background: var(--vc-gold);
+}
+
+html.light input[type="range"]::-moz-range-thumb,
+[data-theme="light"] input[type="range"]::-moz-range-thumb {
+  border: 2px solid #ffffff;
+  background: var(--vc-gold);
+}
+
+/* Heavy modal overlays adapt to softer backdrop */
+html.light .bg-black\/95,
+[data-theme="light"] .bg-black\/95,
+html.light .bg-black\/85,
+[data-theme="light"] .bg-black\/85 {
+  background-color: rgba(20, 18, 16, 0.75) !important;
+}
+
+/* Hero Atmosphere, Backdrop Overlays & Horizon Silhouette Adaptations */
+.hero-backdrop-atmosphere {
+  background:
+    radial-gradient(ellipse 95% 65% at 75% 35%, rgba(42, 31, 20, 0.75) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 85% at 20% 75%, rgba(20, 10, 30, 0.6) 0%, transparent 65%),
+    radial-gradient(circle at 85% 20%, rgba(198, 167, 106, 0.12) 0%, transparent 50%),
+    linear-gradient(180deg, #090908 0%, #0c0b09 45%, #080807 100%);
+}
+
+html.light .hero-backdrop-atmosphere,
+[data-theme="light"] .hero-backdrop-atmosphere {
+  background:
+    radial-gradient(ellipse 95% 65% at 75% 35%, rgba(220, 205, 175, 0.4) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 85% at 20% 75%, rgba(235, 230, 220, 0.5) 0%, transparent 65%),
+    radial-gradient(circle at 85% 20%, rgba(198, 167, 106, 0.16) 0%, transparent 50%),
+    linear-gradient(180deg, #ece9e0 0%, #f3f0e8 45%, #f7f6f2 100%);
+}
+
+.hero-backdrop-fade-t {
+  background: linear-gradient(to top, #080807 0%, rgba(8, 8, 7, 0.75) 50%, transparent 100%);
+}
+
+html.light .hero-backdrop-fade-t,
+[data-theme="light"] .hero-backdrop-fade-t {
+  background: linear-gradient(to top, var(--vc-bg-base) 0%, rgba(247, 246, 242, 0.85) 50%, transparent 100%);
+}
+
+.hero-backdrop-fade-r {
+  background: linear-gradient(to right, #080807 0%, rgba(8, 8, 7, 0.85) 50%, transparent 100%);
+}
+
+html.light .hero-backdrop-fade-r,
+[data-theme="light"] .hero-backdrop-fade-r {
+  background: linear-gradient(to right, var(--vc-bg-base) 0%, rgba(247, 246, 242, 0.88) 50%, transparent 100%);
+}
+
+.hero-projector-beam {
+  background: conic-gradient(from 225deg at 100% 0%, transparent 0deg, rgba(198, 167, 106, 0.14) 22deg, rgba(244, 240, 232, 0.06) 35deg, transparent 48deg);
+  filter: blur(16px);
+  opacity: 0.4;
+  mix-blend-mode: screen;
+}
+
+html.light .hero-projector-beam,
+[data-theme="light"] .hero-projector-beam {
+  background: conic-gradient(from 225deg at 100% 0%, transparent 0deg, rgba(161, 120, 42, 0.14) 22deg, rgba(255, 255, 255, 0.35) 35deg, transparent 48deg);
+  filter: blur(20px);
+  opacity: 0.35;
+  mix-blend-mode: normal;
+}
+
+.hero-vignette {
+  background:
+    linear-gradient(to top, #080807 0%, rgba(8, 8, 7, 0.92) 15%, rgba(8, 8, 7, 0.5) 45%, transparent 70%),
+    radial-gradient(circle at 50% 50%, transparent 60%, rgba(8, 8, 7, 0.7) 100%);
+}
+
+html.light .hero-vignette,
+[data-theme="light"] .hero-vignette {
+  background:
+    linear-gradient(to top, var(--vc-bg-base) 0%, rgba(247, 246, 242, 0.95) 20%, rgba(247, 246, 242, 0.4) 60%, transparent 90%),
+    radial-gradient(circle at 50% 50%, transparent 70%, rgba(215, 210, 200, 0.3) 100%);
+}
+
+html.light .hero-silhouette,
+[data-theme="light"] .hero-silhouette {
+  opacity: 0.45;
+}
+
+html.light .hero-silhouette path:first-child,
+[data-theme="light"] .hero-silhouette path:first-child {
+  fill: #ded8cb !important;
+}
+
+html.light .hero-silhouette path:nth-child(2),
+[data-theme="light"] .hero-silhouette path:nth-child(2) {
+  fill: #e9e4d8 !important;
+}
+
+/* Hero Premiere Badge (Slightly deeper gold for refined visibility) */
+.hero-premiere-badge {
+  background-color: transparent !important;
+  border: 1px solid rgba(168, 130, 59, 0.6) !important;
+  color: #a8823b !important;
+  box-shadow: none !important;
+}
+
+.hero-premiere-badge .badge-dot {
+  background-color: #a8823b !important;
+}
+
+html.light .hero-premiere-badge,
+[data-theme="light"] .hero-premiere-badge {
+  background-color: transparent !important;
+  border-color: rgba(168, 130, 59, 0.65) !important;
+  color: #a8823b !important;
+  box-shadow: none !important;
+}
+
+html.light .hero-premiere-badge .badge-dot,
+[data-theme="light"] .hero-premiere-badge .badge-dot {
+  background-color: #a8823b !important;
+}
+
+html.dark .hero-premiere-badge,
+[data-theme="dark"] .hero-premiere-badge {
+  background-color: transparent !important;
+  border-color: rgba(184, 147, 82, 0.5) !important;
+  color: #b89352 !important;
+  box-shadow: none !important;
+}
+
+html.dark .hero-premiere-badge .badge-dot,
+[data-theme="dark"] .hero-premiere-badge .badge-dot {
+  background-color: #b89352 !important;
+}
+
+/* Card poster text sits over permanent dark poster scrims with guaranteed high contrast */
+.poster-scrim,
+.poster-scrim * {
+  color: #f4f0e8 !important;
+}
+
+.poster-scrim h3,
+.poster-scrim [class*="font-serif"] {
+  color: #ffffff !important;
+}
+
+.poster-scrim .text-vc-gold,
+.poster-scrim .text-vc-gold-bright,
+.poster-scrim [class*="text-vc-gold"] {
+  color: #e2c98a !important;
+}
+
+.poster-scrim .text-white\/40 {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.poster-scrim .text-white\/70,
+.poster-scrim .text-white\/80 {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Dark surfaces outside the cinema screen viewport adapt to clean light surfaces */
+html.light .bg-black\/70:not(.cinema-screen-viewport *):not(.poster-scrim *),
+[data-theme="light"] .bg-black\/70:not(.cinema-screen-viewport *):not(.poster-scrim *),
+html.light .bg-black\/60:not(.cinema-screen-viewport *):not(.poster-scrim *),
+[data-theme="light"] .bg-black\/60:not(.cinema-screen-viewport *):not(.poster-scrim *),
+html.light .bg-black\/50:not(.cinema-screen-viewport *):not(.poster-scrim *),
+[data-theme="light"] .bg-black\/50:not(.cinema-screen-viewport *):not(.poster-scrim *),
+html.light .bg-black\/40:not(.cinema-screen-viewport *):not(.poster-scrim *),
+[data-theme="light"] .bg-black\/40:not(.cinema-screen-viewport *):not(.poster-scrim *) {
+  background-color: var(--vc-bg-elevated) !important;
+  border-color: var(--vc-border) !important;
+  color: var(--vc-text-primary);
+}
+
+

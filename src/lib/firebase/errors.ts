@@ -39,7 +39,7 @@ export function formatAuthError(error: unknown): string {
     code === 'auth/wrong-password' ||
     code.includes('invalid-login-credentials')
   ) {
-    return 'Invalid email or passkey. Please verify your credentials or create a new account.';
+    return 'Invalid email or password. Please verify your credentials or create a new account.';
   }
 
   // 5. Account Conflicts
@@ -49,7 +49,7 @@ export function formatAuthError(error: unknown): string {
 
   // 6. Password Quality
   if (code === 'auth/weak-password') {
-    return 'The passkey is too weak. Please choose a password with at least 6 characters.';
+    return 'The password is too weak. Please choose a password with at least 6 characters.';
   }
 
   // 7. Invalid Email Format
@@ -59,7 +59,7 @@ export function formatAuthError(error: unknown): string {
 
   // 8. Account Disabled
   if (code === 'auth/user-disabled') {
-    return 'This cinema account has been deactivated. Please contact concierge support.';
+    return 'This vcinema account has been deactivated. Please contact support.';
   }
 
   // 9. Popup Interruptions
@@ -81,7 +81,7 @@ export function formatAuthError(error: unknown): string {
   }
 
   if (code === 'auth/too-many-requests') {
-    return 'Access temporarily suspended due to repeated failed attempts. Please try again later or reset your passkey.';
+    return 'Access temporarily suspended due to repeated failed attempts. Please try again later or reset your password.';
   }
 
   if (code === 'auth/requires-recent-login') {

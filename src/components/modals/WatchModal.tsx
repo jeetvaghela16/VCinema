@@ -182,7 +182,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
     >
       <div className="glass-panel w-full max-w-6xl rounded-[8px] border border-vc-gold/30 shadow-[0_25px_90px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col my-auto max-h-[96vh]">
         {/* ── Top Bar with Title, OTT Badge & Close ── */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/10 bg-black/80 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-vc-border bg-vc-bg-elevated/95 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-[10px] font-mono tracking-widest text-vc-gold uppercase px-2 py-0.5 rounded-[2px] bg-vc-gold/10 border border-vc-gold/30 flex-shrink-0">
               {isTv ? 'Web Series' : 'Cinema Feature'}
@@ -274,10 +274,10 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
         </div>
 
         {/* ── Scrollable Controls, Server Deck & OTT Episode Selector ── */}
-        <div className="overflow-y-auto flex-1 divide-y divide-white/5 bg-[#08080a]">
+        <div className="overflow-y-auto flex-1 divide-y divide-vc-border/30 bg-vc-bg-base">
           {/* ── BAR 1: Fast Server Switcher Strip ── */}
           {activeTab === 'stream' && tmdbId && (
-            <div className="px-4 sm:px-6 py-2.5 bg-black/60 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="px-4 sm:px-6 py-2.5 bg-vc-bg-card/90 border-b border-vc-border/30 flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
                 <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider font-semibold mr-1 flex items-center gap-1 flex-shrink-0">
                   <span>⚡ Servers:</span>
@@ -316,7 +316,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
           )}
 
           {/* ── BAR 2: Audio Dub Selector & Mode Switch ── */}
-          <div className="px-4 sm:px-6 py-2.5 bg-black/40 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="px-4 sm:px-6 py-2.5 bg-vc-bg-elevated/70 border-b border-vc-border/30 flex flex-wrap items-center justify-between gap-2.5">
             {activeTab === 'stream' && tmdbId ? (
               <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
                 <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider font-semibold mr-1 flex items-center gap-1 flex-shrink-0">
@@ -552,7 +552,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
                         {/* Text Details */}
                         <div className="p-3 flex flex-col justify-between flex-1">
                           <div>
-                            <h4 className={cn('text-xs font-bold leading-snug line-clamp-1 transition-colors', isCurrent ? 'text-vc-gold' : 'text-white group-hover:text-vc-gold')}>
+                            <h4 className={cn('text-xs font-bold leading-snug line-clamp-1 transition-colors', isCurrent ? 'text-vc-gold' : 'text-vc-text-primary group-hover:text-vc-gold')}>
                               {ep.episode_number}. {ep.name || `Episode ${ep.episode_number}`}
                             </h4>
                             <p className="text-[11px] text-vc-text-muted line-clamp-2 mt-1 leading-relaxed">
@@ -560,7 +560,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
                             </p>
                           </div>
                           {ep.air_date && (
-                            <span className="text-[9px] font-mono text-white/40 mt-2">
+                            <span className="text-[9px] font-mono text-vc-text-muted/60 mt-2">
                               Aired {ep.air_date}
                             </span>
                           )}
@@ -580,7 +580,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
                         'p-2.5 rounded-[3px] border text-center transition-all flex flex-col items-center justify-center',
                         selectedEpisode === ep
                           ? 'border-vc-gold bg-vc-gold text-black font-bold'
-                          : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                          : 'border-vc-border bg-vc-bg-base/70 text-vc-text-muted hover:bg-vc-bg-card hover:text-vc-text-primary'
                       )}
                     >
                       <span className="text-[10px] font-mono opacity-60">EPISODE</span>
@@ -593,9 +593,12 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
           )}
 
           {/* ── Movie / Series Metadata & Cast Overview ── */}
-          <div className="p-4 sm:p-6 space-y-3 bg-[#0a0a0c]">
+          <div className="p-4 sm:p-6 space-y-3 bg-vc-bg-card border-t border-vc-border/40">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-vc-gold font-bold">★ {item.rating}</span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-black/60 border border-vc-gold/30 text-vc-gold font-bold font-mono">
+                <span className="text-[#F5C518] text-[10px]">IMDb</span>
+                <span>★ {item.rating}</span>
+              </span>
               <span className="text-white/30">&middot;</span>
               <span className="text-vc-text-muted">{item.year}</span>
               <span className="text-white/30">&middot;</span>

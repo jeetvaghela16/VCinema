@@ -11,7 +11,7 @@ export default function TheatreSection() {
     <section
       ref={ref}
       className={cn(
-        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-16 transition-all duration-700',
+        'max-w-7xl mx-auto px-5 sm:px-8 md:px-10 pt-5 pb-10 sm:pt-6 sm:pb-12 transition-all duration-700',
         visible ? 'animate-slide-up opacity-100' : 'opacity-0 translate-y-6',
       )}
       aria-label="Choose your theatre format"
@@ -23,8 +23,8 @@ export default function TheatreSection() {
       />
 
       {/* Intro Header */}
-      <div className="text-center max-w-2xl mx-auto mb-12">
-        <h3 className="font-serif text-2xl sm:text-3xl md:text-4xl text-vc-text-primary mb-3">
+      <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-8">
+        <h3 className="font-serif text-2xl sm:text-3xl md:text-4xl text-vc-text-primary mb-2.5">
           Your Cinema. Your People. One Screen.
         </h3>
         <p className="text-vc-text-muted text-sm leading-relaxed">
@@ -33,7 +33,7 @@ export default function TheatreSection() {
       </div>
 
       {/* 4 Distinct Theatre Format Cards (Auditorium Box Style) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8 sm:mb-10">
         {theatreTypes.map((type, i) => (
           <div
             key={type.id}

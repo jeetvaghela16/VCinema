@@ -7,8 +7,6 @@ import {
   fetchTopRatedMovies,
   searchMovies,
   isTmdbConfigured,
-  getTmdbApiKey,
-  setTmdbApiKey,
   CURATED_GLOBAL_MOVIES,
 } from '../services/tmdbService';
 import type { Movie } from '../types';
@@ -52,10 +50,7 @@ export default function Movies() {
   const [searchQuery, setSearchQuery] = useState('');
   const [displayMovies, setDisplayMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(getTmdbApiKey());
-  const [hasConfiguredKey, setHasConfiguredKey] = useState(isTmdbConfigured());
-  const [showApiKeyPlain, setShowApiKeyPlain] = useState(false);
+  const hasConfiguredKey = isTmdbConfigured();
 
   // ── Live Search Suggestions State ──
   const [suggestions, setSuggestions] = useState<Movie[]>([]);
@@ -98,7 +93,6 @@ export default function Movies() {
         }
       }
 
-      // Pure Worldwide Cinema Catalog — Demo placeholder movies completely removed!
       const unique = Array.from(new Map(fetched.map((m) => [m.id, m])).values());
       setDisplayMovies(unique.length > 0 ? unique : CURATED_GLOBAL_MOVIES);
     } catch (err) {
@@ -231,12 +225,6 @@ export default function Movies() {
     loadMovies(activeGenre, '');
   };
 
-  const handleSaveApiKey = () => {
-    setTmdbApiKey(apiKeyInput.trim());
-    setHasConfiguredKey(isTmdbConfigured());
-    setShowKeyModal(false);
-    loadMovies(activeGenre, searchQuery);
-  };
 
   return (
     <div className="min-h-screen pt-[72px]">
@@ -254,20 +242,10 @@ export default function Movies() {
             </h2>
           </div>
 
-          {/* TMDB Connection Indicator & Modal Trigger */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowKeyModal(true)}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-[4px] border text-xs font-mono transition-all',
-                hasConfiguredKey
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                  : 'border-vc-gold/40 bg-vc-gold/10 text-vc-gold hover:bg-vc-gold/20'
-              )}
-            >
-              <span className={cn('w-2 h-2 rounded-full', hasConfiguredKey ? 'bg-emerald-400 animate-pulse' : 'bg-vc-gold')} />
-              <span>{hasConfiguredKey ? 'TMDB Worldwide Live: Connected' : 'Connect TMDB Free Key'}</span>
-            </button>
+          {/* Worldwide Cinema Status Pill (Non-interactive, secured) */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-vc-border/60 bg-vc-bg-card/50 text-xs font-mono text-vc-text-muted">
+            <span className={cn('w-2 h-2 rounded-full', hasConfiguredKey ? 'bg-emerald-400 animate-pulse' : 'bg-vc-gold')} />
+            <span>{hasConfiguredKey ? 'Worldwide Cinema Live' : 'Curated Cinema Catalog'}</span>
           </div>
         </div>
 
@@ -333,9 +311,9 @@ export default function Movies() {
 
           {/* ── LIVE SEARCH SUGGESTIONS FLOATING DROPDOWN ── */}
           {showSuggestions && searchQuery.trim().length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-[#0a0a09]/98 backdrop-blur-2xl border border-vc-gold/30 rounded-[5px] shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_20px_rgba(198,167,106,0.12)] overflow-hidden animate-slide-down">
+            <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-vc-bg-elevated/98 backdrop-blur-2xl border border-vc-border-strong rounded-[5px] shadow-[0_25px_60px_rgba(0,0,0,0.5),0_0_20px_rgba(198,167,106,0.12)] overflow-hidden animate-slide-down">
               {/* Dropdown Header */}
-              <div className="flex items-center justify-between px-3.5 py-2 bg-white/[0.03] border-b border-white/10 text-[10px] font-mono tracking-widest uppercase">
+              <div className="flex items-center justify-between px-3.5 py-2 bg-vc-bg-card/50 border-b border-vc-border text-[10px] font-mono tracking-widest uppercase">
                 <span className="text-vc-gold flex items-center gap-1.5">
                   <span>🎬</span>
                   <span>
@@ -348,7 +326,7 @@ export default function Movies() {
               </div>
 
               {/* Suggestions List */}
-              <div className="max-h-[380px] overflow-y-auto divide-y divide-white/5 py-1">
+              <div className="max-h-[380px] overflow-y-auto divide-y divide-vc-border/30 py-1">
                 {suggestions.length > 0 ? (
                   suggestions.map((movie, index) => {
                     const isHighlighted = index === highlightedIndex;
@@ -358,12 +336,12 @@ export default function Movies() {
                         onMouseEnter={() => setHighlightedIndex(index)}
                         className={cn(
                           'px-3.5 py-2.5 flex items-center gap-3 transition-colors cursor-pointer group',
-                          isHighlighted ? 'bg-vc-gold/15' : 'hover:bg-white/[0.04]'
+                          isHighlighted ? 'bg-vc-gold/15' : 'hover:bg-vc-bg-card/70'
                         )}
                         onClick={() => handleSelectSuggestion(movie)}
                       >
                         {/* Film Poster Thumbnail */}
-                        <div className="w-10 h-14 rounded-[2px] overflow-hidden bg-black/80 flex-shrink-0 border border-white/10 group-hover:border-vc-gold/40 transition-colors relative">
+                        <div className="w-10 h-14 rounded-[2px] overflow-hidden bg-vc-bg-base flex-shrink-0 border border-vc-border group-hover:border-vc-gold/40 transition-colors relative">
                           {movie.posterUrl ? (
                             <img
                               src={movie.posterUrl}
@@ -384,7 +362,7 @@ export default function Movies() {
                             <HighlightMatch text={movie.title} query={searchQuery} />
                           </h4>
                           <div className="flex items-center gap-2 text-[11px] font-mono text-vc-text-muted mt-0.5">
-                            <span className="text-white/80">{movie.year}</span>
+                            <span className="text-vc-text-primary font-medium">{movie.year}</span>
                             <span>&middot;</span>
                             <span className="truncate max-w-[140px]">{movie.genre}</span>
                             {movie.duration && (
@@ -397,7 +375,8 @@ export default function Movies() {
                         </div>
 
                         {/* Rating Badge */}
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-[2px] bg-white/5 border border-white/10 text-vc-gold text-xs font-mono font-semibold flex-shrink-0">
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-[2px] bg-vc-bg-card border border-vc-border text-vc-gold text-xs font-mono font-semibold flex-shrink-0">
+                          <span className="text-[#F5C518] text-[10px] font-bold">IMDb</span>
                           <span>★</span>
                           <span>{movie.rating}</span>
                         </div>
@@ -425,7 +404,7 @@ export default function Movies() {
                                 state: { preselectedItem: movie, preselectedMovieId: movie.id },
                               });
                             }}
-                            className="px-2.5 py-1 rounded-[3px] bg-white/5 hover:bg-white/15 border border-white/10 text-white/80 text-[10px] font-mono uppercase transition-colors"
+                            className="px-2.5 py-1 rounded-[3px] bg-vc-bg-card hover:border-vc-gold/40 border border-vc-border text-vc-text-muted hover:text-vc-gold text-[10px] font-mono uppercase transition-colors"
                             title="Host Virtual Screening Room"
                           >
                             <span>🎭 Room</span>
@@ -436,10 +415,10 @@ export default function Movies() {
                   })
                 ) : !isSearchingSuggestions ? (
                   <div className="px-4 py-6 text-center text-xs text-vc-text-muted space-y-1">
-                    <p className="font-serif text-sm text-white/70">
+                    <p className="font-serif text-sm text-vc-text-primary">
                       No movies found matching &ldquo;{searchQuery}&rdquo;
                     </p>
-                    <p className="text-[11px] font-mono text-white/40">
+                    <p className="text-[11px] font-mono text-vc-text-muted/70">
                       Try searching by director, actor, or check global keywords (e.g. Inception, Avatar, Titanic).
                     </p>
                   </div>
@@ -447,9 +426,9 @@ export default function Movies() {
               </div>
 
               {/* Dropdown Keyboard Shortcuts Helper */}
-              <div className="px-3.5 py-1.5 bg-black/60 border-t border-white/5 flex items-center justify-between text-[9px] font-mono text-vc-text-muted/60">
+              <div className="px-3.5 py-1.5 bg-vc-bg-card/90 border-t border-vc-border/40 flex items-center justify-between text-[9px] font-mono text-vc-text-muted">
                 <span>↑↓ to navigate &middot; ↵ Enter to select &middot; Esc to close</span>
-                <span className="text-vc-gold/80">VCinema Global Live Search</span>
+                <span className="text-vc-gold">VCinema Global Live Search</span>
               </div>
             </div>
           )}
@@ -519,86 +498,7 @@ export default function Movies() {
         )}
       </div>
 
-      {/* ── MODAL: TMDB API KEY SETUP ── */}
-      {showKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="glass-panel w-full max-w-lg rounded-[6px] p-6 border border-vc-gold/30 shadow-[0_25px_60px_rgba(0,0,0,0.95)]">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg text-vc-gold">🎬</span>
-                <h3 className="font-serif text-lg text-vc-text-primary">Worldwide Movie Database Setup</h3>
-              </div>
-              <button
-                onClick={() => setShowKeyModal(false)}
-                className="text-white/40 hover:text-white text-sm"
-              >
-                ✕
-              </button>
-            </div>
 
-            <p className="text-xs text-vc-text-muted leading-relaxed mb-4">
-              VCinema integrates directly with <strong className="text-vc-gold">The Movie Database (TMDB)</strong> to provide every movie and series in the world with official posters, trailers, ratings, and cast.
-            </p>
-
-            <div className="p-3 rounded-[4px] bg-white/5 border border-white/10 mb-4 text-xs space-y-1.5">
-              <p className="font-semibold text-vc-gold text-[11px] uppercase tracking-wider font-mono">
-                How to get your free key (Takes 1 minute):
-              </p>
-              <ol className="list-decimal list-inside text-white/80 space-y-1 text-[11px]">
-                <li>Sign up for free at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noreferrer" className="text-vc-gold underline">themoviedb.org</a></li>
-                <li>Go to <strong>Settings &rarr; API &rarr; Create Developer Key</strong></li>
-                <li>Paste your API key (v3 auth) below:</li>
-              </ol>
-            </div>
-
-            <div className="space-y-2 mb-5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-mono tracking-wider text-vc-text-muted uppercase">
-                  TMDB API Key (v3)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowApiKeyPlain(!showApiKeyPlain)}
-                  className="text-[10px] font-mono text-vc-gold/80 hover:text-vc-gold uppercase tracking-wider transition-colors"
-                >
-                  {showApiKeyPlain ? 'Hide Key' : 'Reveal Key'}
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showApiKeyPlain ? 'text' : 'password'}
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3..."
-                  autoComplete="off"
-                  spellCheck="false"
-                  className="w-full bg-black/60 border border-white/15 focus:border-vc-gold rounded-[3px] px-3 py-2 text-xs font-mono text-white placeholder-white/30 focus:outline-none"
-                />
-              </div>
-              <span className="text-[10px] text-vc-text-muted block">
-                Protected and masked in browser storage.
-              </span>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowKeyModal(false)}
-                className="px-4 py-1.5 text-xs font-mono uppercase text-vc-text-muted hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveApiKey}
-                className="px-5 py-2 bg-vc-gold text-black rounded-[3px] text-xs font-semibold font-mono uppercase tracking-wider hover:bg-vc-gold-bright transition-colors"
-              >
-                Save & Connect
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

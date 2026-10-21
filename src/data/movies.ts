@@ -4,7 +4,6 @@ import { CURATED_GLOBAL_MOVIES } from '../services/tmdbService';
 /**
  * VCinema Core Movie Catalog
  * Pure authentic cinema catalog with verified posters, high-res backdrops, and official trailers.
- * Replaced synthetic demo movies with world cinema masterpieces.
  */
 export const movies: Movie[] = CURATED_GLOBAL_MOVIES;
 

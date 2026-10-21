@@ -1,5 +1,6 @@
 import type { Movie, Series } from '../types';
 import { secureLogger } from '../utils/secureLogger';
+import { getSyncImdbRating, enrichListWithImdbRatings } from './imdbService';
 
 /**
  * The Movie Database (TMDB) API Client & Global Showcase Service
@@ -14,38 +15,24 @@ const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
 
 const STORAGE_SLOT = '__vc_catalog_cred_v1__';
 
-let inMemoryTmdbKey = '';
-
-// Check environment variable or memory (never leaves secrets in DevTools Local Storage)
+// Safe internal retrieval from secure .env environment variables (never stored in LocalStorage)
 export function getTmdbApiKey(): string {
   const envKey = import.meta.env.VITE_TMDB_API_KEY as string | undefined;
-  if (envKey && envKey.trim().length > 0 && !envKey.includes('your-api-key')) {
+  if (envKey && envKey.trim().length > 0 && !envKey.includes('your-api-key') && !envKey.includes('your_free_tmdb_api_key_here')) {
     return envKey.trim();
   }
-  if (inMemoryTmdbKey) {
-    return inMemoryTmdbKey;
-  }
+  // Remove any legacy keys that might have been stored in browser storage
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem('vcinema_tmdb_api_key');
       localStorage.removeItem(STORAGE_SLOT);
+      sessionStorage.removeItem('vcinema_tmdb_api_key');
+      sessionStorage.removeItem(STORAGE_SLOT);
     } catch {
       // Ignore
     }
   }
   return '';
-}
-
-export function setTmdbApiKey(key: string): void {
-  inMemoryTmdbKey = key.trim();
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.removeItem('vcinema_tmdb_api_key');
-      localStorage.removeItem(STORAGE_SLOT);
-    } catch {
-      // Ignore
-    }
-  }
 }
 
 export function isTmdbConfigured(): boolean {
@@ -101,16 +88,18 @@ function mapGenre(genreIds?: number[], isTv = false): string {
 }
 
 /**
- * Format raw TMDB movie object into VCinema Movie
+ * Format raw TMDB movie object into VCinema Movie with Real IMDb Rating
  */
 export function formatTmdbMovie(raw: any): Movie {
   const year = raw.release_date ? new Date(raw.release_date).getFullYear() : 2025;
-  const rating = raw.vote_average ? raw.vote_average.toFixed(1) : '8.0';
+  const tmdbVote = raw.vote_average ? raw.vote_average.toFixed(1) : '8.0';
+  const title = raw.title || raw.original_title || 'Untitled Film';
+  const rating = getSyncImdbRating(title, tmdbVote, isNaN(year) ? undefined : year);
   const duration = raw.runtime ? `${Math.floor(raw.runtime / 60)}h ${raw.runtime % 60}m` : '2h 10m';
 
   return {
     id: `tmdb-m-${raw.id}`,
-    title: raw.title || raw.original_title || 'Untitled Film',
+    title,
     year: isNaN(year) ? 2025 : year,
     genre: raw.genres ? raw.genres[0]?.name : mapGenre(raw.genre_ids, false),
     rating,
@@ -126,15 +115,17 @@ export function formatTmdbMovie(raw: any): Movie {
 }
 
 /**
- * Format raw TMDB TV object into VCinema Series
+ * Format raw TMDB TV object into VCinema Series with Real IMDb Rating
  */
 export function formatTmdbSeries(raw: any): Series {
   const year = raw.first_air_date ? new Date(raw.first_air_date).getFullYear() : 2025;
-  const rating = raw.vote_average ? raw.vote_average.toFixed(1) : '8.2';
+  const tmdbVote = raw.vote_average ? raw.vote_average.toFixed(1) : '8.2';
+  const title = raw.name || raw.original_name || 'Untitled Series';
+  const rating = getSyncImdbRating(title, tmdbVote, isNaN(year) ? undefined : year);
 
   return {
     id: `tmdb-tv-${raw.id}`,
-    title: raw.name || raw.original_name || 'Untitled Series',
+    title,
     year: isNaN(year) ? 2025 : year,
     genre: raw.genres ? raw.genres[0]?.name : mapGenre(raw.genre_ids, true),
     rating,
@@ -154,6 +145,26 @@ export function formatTmdbSeries(raw: any): Series {
  * Safe fetch wrapper with error handling
  */
 async function tmdbFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T | null> {
+  // 1. Primary: Use local secure proxy (/api/tmdb) so that TMDB API key is injected server-side
+  // and is NEVER visible in browser Network tab or URLs.
+  if (typeof window !== 'undefined') {
+    try {
+      const proxyUrl = new URL(`/api/tmdb${endpoint}`, window.location.origin);
+      proxyUrl.searchParams.append('include_adult', 'false');
+      Object.entries(params).forEach(([k, v]) => {
+        proxyUrl.searchParams.append(k, v);
+      });
+
+      const res = await fetch(proxyUrl.toString());
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+    } catch {
+      // Non-fatal, try direct fallback
+    }
+  }
+
+  // 2. Direct Fallback: Only used if proxy server is unavailable (e.g. standalone static build)
   const apiKey = getTmdbApiKey();
   if (!apiKey) return null;
 
@@ -172,50 +183,58 @@ async function tmdbFetch<T>(endpoint: string, params: Record<string, string> = {
       return null;
     }
     return (await res.json()) as T;
-  } catch (err) {
-    secureLogger.error('TMDB API network error:', err);
+  } catch {
+    secureLogger.error('TMDB API network connection error');
     return null;
   }
 }
 
 /**
- * Fetch Worldwide Trending Movies
+ * Fetch Worldwide Trending Movies with Real IMDb Ratings
  */
 export async function fetchTrendingMovies(page = 1): Promise<Movie[]> {
   const data = await tmdbFetch<{ results: any[] }>('/trending/movie/week', { page: String(page) });
   if (!data?.results?.length) {
     return CURATED_GLOBAL_MOVIES;
   }
-  return data.results.map(formatTmdbMovie);
+  const formatted = data.results.map(formatTmdbMovie);
+  enrichListWithImdbRatings(formatted);
+  return formatted;
 }
 
 /**
- * Fetch Worldwide Trending TV / Web Series
+ * Fetch Worldwide Trending TV / Web Series with Real IMDb Ratings
  */
 export async function fetchTrendingSeries(page = 1): Promise<Series[]> {
   const data = await tmdbFetch<{ results: any[] }>('/trending/tv/week', { page: String(page) });
   if (!data?.results?.length) {
     return CURATED_GLOBAL_SERIES;
   }
-  return data.results.map(formatTmdbSeries);
+  const formatted = data.results.map(formatTmdbSeries);
+  enrichListWithImdbRatings(formatted);
+  return formatted;
 }
 
 /**
- * Fetch Popular Movies
+ * Fetch Popular Movies with Real IMDb Ratings
  */
 export async function fetchPopularMovies(page = 1): Promise<Movie[]> {
   const data = await tmdbFetch<{ results: any[] }>('/movie/popular', { page: String(page) });
   if (!data?.results?.length) return CURATED_GLOBAL_MOVIES;
-  return data.results.map(formatTmdbMovie);
+  const formatted = data.results.map(formatTmdbMovie);
+  enrichListWithImdbRatings(formatted);
+  return formatted;
 }
 
 /**
- * Fetch Top Rated Movies Worldwide
+ * Fetch Top Rated Movies Worldwide with Real IMDb Ratings
  */
 export async function fetchTopRatedMovies(page = 1): Promise<Movie[]> {
   const data = await tmdbFetch<{ results: any[] }>('/movie/top_rated', { page: String(page) });
   if (!data?.results?.length) return CURATED_GLOBAL_MOVIES;
-  return data.results.map(formatTmdbMovie);
+  const formatted = data.results.map(formatTmdbMovie);
+  enrichListWithImdbRatings(formatted);
+  return formatted;
 }
 
 // ── High-speed Search Cache & In-flight Deduplication (0ms latency for cached queries) ──
@@ -254,6 +273,7 @@ export async function searchMovies(query: string): Promise<Movie[]> {
         return fallback;
       }
       const formatted = data.results.map(formatTmdbMovie);
+      enrichListWithImdbRatings(formatted);
       if (movieSearchCache.size > 150) {
         const firstKey = movieSearchCache.keys().next().value;
         if (firstKey) movieSearchCache.delete(firstKey);
@@ -303,6 +323,7 @@ export async function searchSeries(query: string): Promise<Series[]> {
         return fallback;
       }
       const formatted = data.results.map(formatTmdbSeries);
+      enrichListWithImdbRatings(formatted);
       if (seriesSearchCache.size > 150) {
         const firstKey = seriesSearchCache.keys().next().value;
         if (firstKey) seriesSearchCache.delete(firstKey);
@@ -794,7 +815,7 @@ export const CURATED_GLOBAL_MOVIES: Movie[] = [
     title: 'Dune: Part Two',
     year: 2024,
     genre: 'Sci-Fi',
-    rating: '8.3',
+    rating: '8.5',
     duration: '2h 46m',
     description:
       'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.',
@@ -811,7 +832,7 @@ export const CURATED_GLOBAL_MOVIES: Movie[] = [
     title: 'Oppenheimer',
     year: 2023,
     genre: 'Drama',
-    rating: '8.1',
+    rating: '8.9',
     duration: '3h 01m',
     description:
       'The story of J. Robert Oppenheimer\'s role in the development of the atomic bomb during World War II.',
@@ -828,7 +849,7 @@ export const CURATED_GLOBAL_MOVIES: Movie[] = [
     title: 'Inception',
     year: 2010,
     genre: 'Action',
-    rating: '8.4',
+    rating: '8.8',
     duration: '2h 28m',
     description:
       'Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets is offered a chance to regain his old life.',
@@ -845,7 +866,7 @@ export const CURATED_GLOBAL_MOVIES: Movie[] = [
     title: 'Spirited Away',
     year: 2001,
     genre: 'Animation',
-    rating: '8.5',
+    rating: '8.6',
     duration: '2h 05m',
     description:
       'A young girl, Chihiro, becomes trapped in a strange new world of spirits. When her parents undergo a mysterious transformation, she must call upon the courage she never knew she had to free her family.',
@@ -862,7 +883,7 @@ export const CURATED_GLOBAL_MOVIES: Movie[] = [
     title: 'The Godfather',
     year: 1972,
     genre: 'Crime',
-    rating: '8.7',
+    rating: '9.2',
     duration: '2h 55m',
     description:
       'Spanning the years 1945 to 1955, a chronicle of the fictional Italian-American Corleone crime family. When organized crime family patriarch, Vito Corleone barely survives an attempt on his life, his youngest son steps in.',
@@ -879,7 +900,7 @@ export const CURATED_GLOBAL_MOVIES: Movie[] = [
     title: 'The Dark Knight',
     year: 2008,
     genre: 'Action',
-    rating: '8.5',
+    rating: '9.1',
     duration: '2h 32m',
     description:
       'Batman raises the stakes in his war on crime. With the help of Lt. Jim Gordon and District Attorney Harvey Dent, Batman sets out to dismantle the remaining criminal organizations that plague the streets.',
@@ -899,7 +920,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'Stranger Things',
     year: 2016,
     genre: 'Sci-Fi & Fantasy',
-    rating: '8.6',
+    rating: '8.7',
     seasons: 4,
     episodes: 34,
     description:
@@ -917,7 +938,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'Squid Game',
     year: 2021,
     genre: 'Action & Adventure',
-    rating: '7.8',
+    rating: '8.0',
     seasons: 2,
     episodes: 16,
     description:
@@ -935,7 +956,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'Game of Thrones',
     year: 2011,
     genre: 'Sci-Fi & Fantasy',
-    rating: '8.4',
+    rating: '9.2',
     seasons: 8,
     episodes: 73,
     description:
@@ -953,7 +974,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'Arcane',
     year: 2021,
     genre: 'Animation',
-    rating: '8.7',
+    rating: '9.0',
     seasons: 2,
     episodes: 18,
     description:
@@ -989,7 +1010,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'Attack on Titan (Shingeki no Kyojin)',
     year: 2013,
     genre: 'Animation',
-    rating: '8.6',
+    rating: '9.1',
     seasons: 4,
     episodes: 88,
     description:
@@ -1007,7 +1028,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'Chernobyl',
     year: 2019,
     genre: 'Drama',
-    rating: '8.6',
+    rating: '9.3',
     seasons: 1,
     episodes: 5,
     description:
@@ -1025,7 +1046,7 @@ export const CURATED_GLOBAL_SERIES: Series[] = [
     title: 'The Last of Us',
     year: 2023,
     genre: 'Drama',
-    rating: '8.6',
+    rating: '8.7',
     seasons: 1,
     episodes: 9,
     description:

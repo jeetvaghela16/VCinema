@@ -47,13 +47,12 @@ export default function ForgotPassword() {
         aria-hidden="true"
         style={{
           background: `
-            radial-gradient(ellipse 70% 60% at 50% 30%, rgba(198, 167, 106, 0.08) 0%, transparent 60%),
-            linear-gradient(180deg, #080807 0%, #0d0c0a 100%)
+            radial-gradient(ellipse 70% 60% at 50% 30%, rgba(198, 167, 106, 0.08) 0%, transparent 60%)
           `,
         }}
       />
 
-      <div className="relative z-10 w-full max-w-md glass-panel rounded-[6px] border border-vc-border/80 shadow-[0_24px_60px_rgba(0,0,0,0.8)] p-8 sm:p-10">
+      <div className="relative z-10 w-full max-w-md glass-panel rounded-[6px] border border-vc-border/80 shadow-[0_20px_50px_rgba(0,0,0,0.08)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.8)] p-8 sm:p-10">
         <div className="text-center mb-8">
           <Link
             to="/"
@@ -69,10 +68,10 @@ export default function ForgotPassword() {
           </Link>
 
           <h1 className="font-serif text-2xl sm:text-3xl text-vc-text-primary font-semibold tracking-wide">
-            Reset Passkey
+            Reset Password
           </h1>
           <p className="text-xs text-vc-text-muted mt-1.5 leading-relaxed">
-            Enter your account email to receive an authorized passkey recovery dispatch.
+            Enter your account email to receive an authorized password recovery dispatch.
           </p>
         </div>
 
@@ -135,7 +134,7 @@ export default function ForgotPassword() {
                   htmlFor="forgot-email"
                   className="block text-[11px] font-mono tracking-widest text-vc-text-muted uppercase mb-1.5"
                 >
-                  Cinema Account Email
+                  VCinema Account Email
                 </label>
                 <input
                   id="forgot-email"
@@ -146,7 +145,7 @@ export default function ForgotPassword() {
                   autoComplete="email"
                   required
                   disabled={isSubmitting}
-                  className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder-vc-text-muted/40 focus:border-vc-gold/60 focus:outline-none transition-colors shadow-inner"
+                  className="w-full bg-vc-bg-base/80 focus:bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary placeholder:text-vc-text-muted/50 focus:border-vc-gold/60 focus:outline-none transition-colors"
                 />
               </div>
 
@@ -169,7 +168,7 @@ export default function ForgotPassword() {
             </form>
 
             <p className="text-center text-xs text-vc-text-muted mt-8">
-              Remember your passkey?{' '}
+              Remember your password?{' '}
               <Link to="/login" className="text-vc-gold hover:underline font-medium">
                 Sign in here &rarr;
               </Link>

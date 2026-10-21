@@ -8,7 +8,7 @@ VCinema is a virtual cinema platform designed for synchronized film screenings w
 
 ## ✨ Features
 
-- **🏛️ Virtual Auditoriums & Theatres**: Create rooms with customizable formats (*Private Screen*, *Friends Night*, *Family Room*, *Open Screen*), custom seating capacity, and optional admission passkeys.
+- **🏛️ Virtual Auditoriums & Theatres**: Create rooms with customizable formats (*Private Screen*, *Friends Night*, *Family Room*, *Open Screen*), custom seating capacity, and optional admission password.
 - **👑 Host Playback Synchronization**: One Host controls Play, Pause, Seek, and Film selection. All connected viewers are kept synchronized in real-time.
 - **🟢 Live Audience Presence**: Dynamic strip displaying who is currently seated in the auditorium with active status indicators and Host badges.
 - **💬 Real-Time Theatre Chat**: Send and receive live messages with synchronized film timecodes during the screening.

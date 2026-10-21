@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { recentTheatres } from '../data/theatres';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getTheatreByCode, getTheatreById } from '../services/theatreService';
 import type { LiveTheatreRoom } from '../types/theatre';
 import { verifyRoomPassword } from '../utils/crypto';
@@ -165,23 +164,23 @@ export default function JoinTheatre() {
     if (isValid) {
       navigate(`/theatre/${pendingRoomId}`);
     } else {
-      setErrorMessage('Incorrect passkey for this private screening.');
+      setErrorMessage('Incorrect password for this private screening.');
     }
   };
 
   return (
-    <div className="min-h-screen pt-[72px]">
-      <div className="max-w-2xl mx-auto px-6 md:px-10 pt-12 pb-20">
+    <div className="pt-[72px]">
+      <div className="max-w-2xl mx-auto px-6 md:px-10 pt-8 pb-6 sm:pb-8">
         {/* Header */}
         <div className="section-divider mb-0">
           <h1 className="font-sans text-[11px] font-semibold tracking-[0.25em] text-vc-gold uppercase">
-            Admission Box Office
+            The Grand Foyer
           </h1>
         </div>
-        <h2 className="font-serif text-4xl md:text-5xl text-vc-text-primary mt-4 mb-2">
+        <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-vc-text-primary mt-3 mb-2">
           Join a Theatre
         </h2>
-        <p className="text-vc-text-muted text-sm mb-10">
+        <p className="text-vc-text-muted text-sm mb-6">
           Enter an auditorium room code, paste an invite link, or enter a direct screening URL.
         </p>
 
@@ -193,7 +192,7 @@ export default function JoinTheatre() {
           </div>
         )}
 
-        <div className="glass-panel rounded-[6px] p-8 mb-8 border border-vc-border/80 shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+        <div className="glass-panel rounded-[6px] p-6 sm:p-8 mb-0 border border-vc-border/80 shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
           {passwordRequired ? (
             /* Passcode Verification Screen */
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
@@ -201,20 +200,20 @@ export default function JoinTheatre() {
                 <span className="text-3xl mb-2 block">🔒</span>
                 <h3 className="font-serif text-xl text-vc-text-primary">Private Auditorium</h3>
                 <p className="text-xs text-vc-text-muted mt-1">
-                  This screening requires a passkey issued by the host.
+                  This screening requires a password issued by the host.
                 </p>
               </div>
 
               <div>
-                <label htmlFor="theatre-passkey" className="block text-xs font-mono uppercase tracking-widest text-vc-text-muted mb-2">
-                  Auditorium Passkey
+                <label htmlFor="theatre-password" className="block text-xs font-mono uppercase tracking-widest text-vc-text-muted mb-2">
+                  Auditorium Password
                 </label>
                 <input
-                  id="theatre-passkey"
+                  id="theatre-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter passkey"
+                  placeholder="Enter password"
                   autoFocus
                   required
                   className="w-full bg-vc-bg-base border border-vc-border rounded-[4px] px-4 py-3 text-sm text-vc-text-primary focus:border-vc-gold/60 focus:outline-none transition-colors"
@@ -265,7 +264,7 @@ export default function JoinTheatre() {
                   aria-describedby="code-hint"
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px] text-vc-text-muted font-mono">
-                  <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">Code: VCX-7K9M2Q</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">Code: VCX-XXXXXX</span>
                   <span className="text-white/20">&bull;</span>
                   <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">Invite Link</span>
                   <span className="text-white/20">&bull;</span>
@@ -289,54 +288,6 @@ export default function JoinTheatre() {
               </button>
             </form>
           )}
-        </div>
-
-        {/* Demo Fallback Option */}
-        <div className="text-center mb-10">
-          <Link
-            to="/theatre/demo"
-            className="text-xs font-mono text-vc-text-muted hover:text-vc-gold transition-colors inline-flex items-center gap-1.5"
-          >
-            <span>Explore Virtual Cinema in Sandbox Demo Mode</span>
-            <span>&rarr;</span>
-          </Link>
-        </div>
-
-        {/* Recent Theatres */}
-        <div>
-          <h3 className="text-xs font-semibold text-vc-text-muted uppercase tracking-widest mb-4">
-            Auditorium Previews
-          </h3>
-          <div className="flex flex-col gap-3">
-            {recentTheatres.map((theatre) => (
-              <Link
-                to="/theatre/demo"
-                key={theatre.id}
-                className="glass-panel rounded-[4px] p-4 flex items-center justify-between hover:border-vc-border-strong transition-all group"
-                aria-label={`View demo for ${theatre.name}`}
-              >
-                <div>
-                  <p className="text-sm font-medium text-vc-text-primary mb-0.5">{theatre.name}</p>
-                  <p className="text-xs text-vc-text-muted">
-                    {theatre.code} &middot; {theatre.participantCount} watching &middot;{' '}
-                    <span className="italic">{theatre.currentMovie}</span>
-                  </p>
-                </div>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-vc-text-muted group-hover:text-vc-gold group-hover:translate-x-1 transition-all duration-200 flex-shrink-0"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
-            ))}
-          </div>
         </div>
       </div>
     </div>

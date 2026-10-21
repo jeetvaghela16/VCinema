@@ -103,7 +103,8 @@ export default function MovieCard({ movie, className, onClick }: MovieCardProps)
 
       {/* Rating badge */}
       <div className="absolute top-2.5 right-2.5 z-10">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-vc-gold bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-[3px] border border-vc-gold/25 shadow-sm">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-vc-gold bg-black/85 backdrop-blur-md px-2 py-0.5 rounded-[3px] border border-vc-gold/30 shadow-sm font-mono">
+          <span className="text-[9px] font-bold text-[#F5C518]">IMDb</span>
           <span className="text-[10px] text-vc-gold">★</span> {movie.rating}
         </span>
       </div>
@@ -116,7 +117,7 @@ export default function MovieCard({ movie, className, onClick }: MovieCardProps)
       </div>
 
       {/* Bottom poster typography & metadata */}
-      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end p-3.5 pt-12 bg-gradient-to-t from-black/95 via-black/75 to-transparent">
+      <div className="poster-scrim absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end p-3.5 pt-12 bg-gradient-to-t from-black/95 via-black/75 to-transparent">
         {/* Progress bar */}
         {movie.progress !== undefined && (
           <div
@@ -135,16 +136,20 @@ export default function MovieCard({ movie, className, onClick }: MovieCardProps)
         )}
 
         {/* Genre + year reveal on hover / persistent in mobile */}
-        <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-vc-gold-dim mb-1 tracking-wide">
+        <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-vc-gold-bright mb-1 tracking-wide">
           <span>{movie.year}</span>
-          <span>&middot;</span>
-          <span className="text-vc-text-muted">{movie.genre}</span>
-          <span>&middot;</span>
-          <span className="text-vc-text-muted/80">{movie.duration}</span>
+          <span className="text-white/40">&middot;</span>
+          <span className="text-white/80">{movie.genre}</span>
+          {movie.duration && (
+            <>
+              <span className="text-white/40">&middot;</span>
+              <span className="text-white/70">{movie.duration}</span>
+            </>
+          )}
         </div>
 
         {/* Title */}
-        <h3 className="font-serif text-[14px] font-semibold text-vc-text-primary leading-snug line-clamp-2 group-hover:text-vc-gold transition-colors duration-200">
+        <h3 className="font-serif text-[14px] font-semibold text-white leading-snug line-clamp-2 group-hover:text-vc-gold transition-colors duration-200">
           {movie.title}
         </h3>
       </div>

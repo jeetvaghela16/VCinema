@@ -164,3 +164,47 @@ export function setVideoQualityPreference(quality: string): void {
     // Non-fatal
   }
 }
+
+/**
+ * Safe, non-sensitive preferences for visual theme ('dark' | 'light').
+ */
+export function getThemePreference(): 'dark' | 'light' {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const val = localStorage.getItem('vc_pref_theme');
+    return val === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+export function setThemePreference(theme: 'dark' | 'light'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const safeTheme = theme === 'light' ? 'light' : 'dark';
+    localStorage.setItem('vc_pref_theme', safeTheme);
+  } catch {
+    // Non-fatal
+  }
+  applyTheme(theme);
+}
+
+export function applyTheme(theme: 'dark' | 'light'): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.setAttribute('data-theme', theme);
+  root.classList.remove('dark', 'light');
+  root.classList.add(theme);
+
+  // Update theme-color meta tag if present
+  let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+  }
+  meta.content = theme === 'light' ? '#f7f6f2' : '#080807';
+
+  // Dispatch custom event for real-time listener updates
+  window.dispatchEvent(new CustomEvent('vc-theme-change', { detail: { theme } }));
+}

@@ -109,24 +109,25 @@ export default function SeriesCard({ series, className, onClick }: SeriesCardPro
 
       {/* Rating badge */}
       <div className="absolute top-2.5 right-2.5 z-10">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-vc-gold bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-[3px] border border-vc-gold/25 shadow-sm">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-vc-gold bg-black/85 backdrop-blur-md px-2 py-0.5 rounded-[3px] border border-vc-gold/30 shadow-sm font-mono">
+          <span className="text-[9px] font-bold text-[#F5C518]">IMDb</span>
           <span className="text-[10px] text-vc-gold">★</span> {series.rating}
         </span>
       </div>
 
       {/* Bottom metadata */}
-      <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end p-3.5 pt-12 bg-gradient-to-t from-black/95 via-black/75 to-transparent">
-        <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-vc-gold-dim mb-1 tracking-wide">
+      <div className="poster-scrim absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end p-3.5 pt-12 bg-gradient-to-t from-black/95 via-black/75 to-transparent">
+        <div className="flex items-center gap-1.5 text-[10.5px] font-medium text-vc-gold-bright mb-1 tracking-wide">
           <span>{series.year}</span>
-          <span>&middot;</span>
-          <span className="text-vc-text-muted">{series.genre}</span>
+          <span className="text-white/40">&middot;</span>
+          <span className="text-white/80">{series.genre}</span>
         </div>
 
-        <h3 className="font-serif text-[14px] font-semibold text-vc-text-primary leading-snug line-clamp-2 mb-1 group-hover:text-vc-gold transition-colors duration-200">
+        <h3 className="font-serif text-[14px] font-semibold text-white leading-snug line-clamp-2 mb-1 group-hover:text-vc-gold transition-colors duration-200">
           {series.title}
         </h3>
 
-        <p className="text-[11px] text-vc-text-muted/80 flex items-center gap-1">
+        <p className="text-[11px] text-white/70 flex items-center gap-1">
           <span>{series.seasons} Season{series.seasons > 1 ? 's' : ''}</span>
           <span>&middot;</span>
           <span>{series.episodes} Episodes</span>

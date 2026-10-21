@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useTheatre } from '../hooks/useTheatre';
+import { useTheme } from '../context/ThemeContext';
 import { movies } from '../data/movies';
 import {
   CURATED_GLOBAL_MOVIES,
@@ -37,6 +38,7 @@ export default function TheatreRoom() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const {
     room,
     participants,
@@ -149,10 +151,10 @@ export default function TheatreRoom() {
     reportedDuration > 60
       ? reportedDuration
       : room?.playback?.duration && room.playback.duration !== 8280
-      ? room.playback.duration
-      : parsedMovieDuration > 60
-      ? parsedMovieDuration
-      : room?.playback?.duration || 8280;
+        ? room.playback.duration
+        : parsedMovieDuration > 60
+          ? parsedMovieDuration
+          : room?.playback?.duration || 8280;
 
   // Auto-sync movie duration to Firestore if missing or default
   useEffect(() => {
@@ -184,10 +186,10 @@ export default function TheatreRoom() {
         room.playback.mediaType === 'trailer'
           ? 'trailer'
           : room.playback.mediaType === 'artwork'
-          ? 'artwork'
-          : room.playback.mediaType === 'video'
-          ? 'video'
-          : 'stream'
+            ? 'artwork'
+            : room.playback.mediaType === 'video'
+              ? 'video'
+              : 'stream'
       );
     }
   }, [room?.playback?.streamServerId, room?.playback?.audioLanguage, room?.playback?.mediaType, room?.playback?.duration]);
@@ -415,7 +417,7 @@ export default function TheatreRoom() {
             videoElementRef.current.currentTime = target;
           }
           if (videoElementRef.current.paused) {
-            videoElementRef.current.play().catch(() => {});
+            videoElementRef.current.play().catch(() => { });
           }
         }
 
@@ -446,7 +448,7 @@ export default function TheatreRoom() {
   useEffect(() => {
     if (!videoElementRef.current) return;
     if (room?.playback?.isPlaying) {
-      videoElementRef.current.play().catch(() => {});
+      videoElementRef.current.play().catch(() => { });
     } else {
       videoElementRef.current.pause();
     }
@@ -522,7 +524,7 @@ export default function TheatreRoom() {
       if (req) {
         req.call(targetEl).catch((err: unknown) => {
           secureLogger.warn('Error requesting player fullscreen, falling back to screen container:', err);
-          screenRef.current?.requestFullscreen().catch(() => {});
+          screenRef.current?.requestFullscreen().catch(() => { });
         });
       }
     } else {
@@ -576,7 +578,7 @@ export default function TheatreRoom() {
     } else {
       // 1. Immediately resume local HTML5 video and all embedded player frames
       if (videoElementRef.current) {
-        videoElementRef.current.play().catch(() => {});
+        videoElementRef.current.play().catch(() => { });
       }
       sendIframePlaybackCommand('play', localTime, true);
 
@@ -683,7 +685,7 @@ export default function TheatreRoom() {
               win.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
               win.postMessage(JSON.stringify({ context: 'player.js', version: '0.0.11', event: 'command', command: 'pause' }), '*');
               win.postMessage(JSON.stringify({ type: 'pause' }), '*');
-            } catch {}
+            } catch { }
           }, 120);
 
         } else if (action === 'play') {
@@ -968,7 +970,7 @@ export default function TheatreRoom() {
       if (videoElementRef.current) {
         videoElementRef.current.currentTime = targetTime;
         if (room.playback.isPlaying) {
-          videoElementRef.current.play().catch(() => {});
+          videoElementRef.current.play().catch(() => { });
         } else {
           videoElementRef.current.pause();
         }
@@ -1008,7 +1010,7 @@ export default function TheatreRoom() {
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = hostTime;
       if (isPlaying) {
-        videoElementRef.current.play().catch(() => {});
+        videoElementRef.current.play().catch(() => { });
       } else {
         videoElementRef.current.pause();
       }
@@ -1038,7 +1040,7 @@ export default function TheatreRoom() {
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = hostTime;
       if (isPlaying) {
-        videoElementRef.current.play().catch(() => {});
+        videoElementRef.current.play().catch(() => { });
       } else {
         videoElementRef.current.pause();
       }
@@ -1124,7 +1126,7 @@ export default function TheatreRoom() {
   const progressPercent = Math.min(100, Math.max(0, (localTime / duration) * 100));
 
   return (
-    <div className="fixed inset-0 bg-[#050504] flex flex-col overflow-hidden select-none" aria-label="VCinema Auditorium">
+    <div className="fixed inset-0 bg-vc-bg-base text-vc-text-primary flex flex-col overflow-hidden select-none transition-colors duration-200" aria-label="VCinema Auditorium">
       {/* ── COPIED TOAST ── */}
       {copiedToast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-vc-gold text-black text-xs font-mono font-semibold px-4 py-2 rounded-[4px] shadow-[0_4px_20px_rgba(198,167,106,0.5)] animate-slide-down flex items-center gap-2">
@@ -1135,33 +1137,33 @@ export default function TheatreRoom() {
 
       {/* ── LIVE SYNC TOAST ── */}
       {syncToast && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-black/90 border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold px-4 py-2 rounded-[4px] shadow-[0_4px_25px_rgba(0,0,0,0.8),0_0_20px_rgba(198,167,106,0.3)] backdrop-blur-md animate-slide-down flex items-center gap-2">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-vc-bg-card/95 border border-vc-gold/60 text-vc-gold text-xs font-mono font-semibold px-4 py-2 rounded-[4px] shadow-[0_4px_25px_rgba(0,0,0,0.8),0_0_20px_rgba(198,167,106,0.3)] backdrop-blur-md animate-slide-down flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           <span>{syncToast}</span>
         </div>
       )}
 
       {/* ── TOP NAV BAR ── */}
-      <header className="flex items-center justify-between px-4 md:px-6 h-12 bg-black/90 border-b border-white/5 backdrop-blur-sm flex-shrink-0 z-20">
+      <header className="flex items-center justify-between px-4 md:px-6 h-12 bg-vc-bg-elevated/95 border-b border-vc-border backdrop-blur-md flex-shrink-0 z-20 theatre-header transition-colors duration-200">
         {/* Logo & Auditorium Name */}
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-baseline gap-0.5 group" aria-label="Exit to VCinema home">
             <span className="font-serif text-lg font-bold text-vc-gold group-hover:scale-105 transition-transform">V</span>
             <span className="font-sans text-xs font-light text-vc-text-muted tracking-[0.08em]">Cinema</span>
           </Link>
-          <div className="h-3 w-[1px] bg-white/10 hidden sm:block" aria-hidden="true" />
+          <div className="h-3 w-[1px] bg-vc-border hidden sm:block" aria-hidden="true" />
           <span className="text-xs font-serif text-vc-text-primary truncate max-w-[140px] sm:max-w-[200px] hidden sm:block">
             {room.name}
           </span>
         </div>
 
         {/* Current Presentation Title in Header */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-white/5 rounded-[4px] border border-white/10 max-w-sm truncate">
+        <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-vc-bg-card rounded-[4px] border border-vc-border max-w-sm truncate">
           <span className="text-[10px] font-mono text-vc-gold tracking-widest uppercase">
             {isTv ? `S${currentSeason}:E${currentEpisode}` : currentMovie.genre}
           </span>
-          <span className="text-white/30">·</span>
-          <span className="text-xs font-serif font-bold text-white truncate">
+          <span className="text-vc-text-muted">·</span>
+          <span className="text-xs font-serif font-bold text-vc-text-primary truncate">
             {currentMovie.title}
           </span>
         </div>
@@ -1170,7 +1172,7 @@ export default function TheatreRoom() {
         <div className="flex items-center gap-4">
           <button
             onClick={handleCopyInvite}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors group"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] bg-vc-bg-card hover:bg-vc-bg-elevated border border-vc-border transition-colors group"
             title="Click to copy invite link"
           >
             <span className="text-[10px] font-mono tracking-widest text-vc-text-muted uppercase">Code</span>
@@ -1191,8 +1193,18 @@ export default function TheatreRoom() {
           </div>
         </div>
 
-        {/* Right actions: Lock, Invite & Leave/End */}
+        {/* Right actions: Theme, Lock, Invite & Leave/End */}
         <div className="flex items-center gap-2">
+          {/* Quick Theme Switcher */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex items-center justify-center w-7 h-7 rounded-[3px] border border-vc-border bg-vc-bg-card text-xs font-mono text-vc-text-muted hover:text-vc-gold transition-colors"
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+          >
+            <span>{theme === 'dark' ? '☀️' : '🌙'}</span>
+          </button>
+
           {/* Host Authority: Lock Room Toggle */}
           {isHost && (
             <button
@@ -1202,7 +1214,7 @@ export default function TheatreRoom() {
                 'hidden sm:inline-flex items-center gap-1 text-[10px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-[2px] border transition-all',
                 room.isLocked
                   ? 'border-amber-500/60 bg-amber-950/40 text-amber-300'
-                  : 'border-white/10 hover:border-white/30 text-white/70'
+                  : 'border-vc-border hover:border-vc-border-strong text-vc-text-muted hover:text-vc-text-primary bg-vc-bg-card/60'
               )}
               title={room.isLocked ? 'Auditorium is locked. Click to unlock.' : 'Click to lock auditorium against new joins.'}
             >
@@ -1241,19 +1253,10 @@ export default function TheatreRoom() {
         {/* Screen + Controls */}
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden">
           {/* Cinema Screen Container */}
-          <div className="flex-1 flex items-center justify-center px-2 sm:px-4 md:px-6 py-1.5 sm:py-2 relative min-h-0">
+          <div className="w-full flex-shrink-0 px-3 md:px-8 pt-3 sm:pt-4 pb-2.5 flex justify-center">
             <div
               ref={screenRef}
-              style={
-                isFullscreen
-                  ? undefined
-                  : {
-                      width: 'min(100%, calc((100vh - 370px) * 16 / 9))',
-                      maxHeight: 'calc(100vh - 370px)',
-                      maxWidth: '64rem',
-                    }
-              }
-              className="aspect-video w-full rounded-[3px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_0_100px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)] group"
+              className="cinema-screen-viewport aspect-video w-full max-w-5xl mx-auto rounded-[4px] sm:rounded-[6px] relative overflow-hidden bg-black flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.2),0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[0_0_80px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.06)] group"
               aria-label="Cinema screen"
             >
               {/* Floating Fullscreen Exit Button inside Screen Container */}
@@ -1316,7 +1319,7 @@ export default function TheatreRoom() {
                   <span className="text-[10px] font-mono tracking-[0.25em] text-vc-gold uppercase mb-1">
                     Auditorium Projection Suspended
                   </span>
-                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-white mb-2">
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-white keep-white mb-2">
                     Screening Paused by Host
                   </h3>
                   <p className="text-xs text-vc-text-muted max-w-md mb-5 leading-relaxed">
@@ -1336,14 +1339,14 @@ export default function TheatreRoom() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleHostSkipBackward10}
-                          className="px-3 py-2 rounded-[4px] bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-mono transition-colors flex items-center gap-1"
+                          className="px-3 py-2 rounded-[4px] bg-white/10 hover:bg-white/20 border border-white/15 text-white keep-white text-xs font-mono transition-colors flex items-center gap-1"
                           title="Skip Backward 10 Seconds"
                         >
                           <span>⏪ -10s</span>
                         </button>
                         <button
                           onClick={handleHostSkipForward10}
-                          className="px-3 py-2 rounded-[4px] bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-mono transition-colors flex items-center gap-1"
+                          className="px-3 py-2 rounded-[4px] bg-white/10 hover:bg-white/20 border border-white/15 text-white keep-white text-xs font-mono transition-colors flex items-center gap-1"
                           title="Skip Forward 10 Seconds"
                         >
                           <span>+10s ⏩</span>
@@ -1364,17 +1367,16 @@ export default function TheatreRoom() {
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
                   <iframe
                     key={`yt-screen-${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}`}
-                    src={`https://www.youtube-nocookie.com/embed/${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}?enablejsapi=1&autoplay=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&start=${Math.floor(streamAnchorTime)}&controls=1&modestbranding=1&rel=0&iv_load_policy=3${
-                      videoQuality === '4k'
+                    src={`https://www.youtube-nocookie.com/embed/${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}?enablejsapi=1&autoplay=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&start=${Math.floor(streamAnchorTime)}&controls=1&modestbranding=1&rel=0&iv_load_policy=3${videoQuality === '4k'
                         ? '&vq=highres'
                         : videoQuality === '1080'
-                        ? '&vq=hd1080'
-                        : videoQuality === '720'
-                        ? '&vq=hd720'
-                        : videoQuality === '480'
-                        ? '&vq=large'
-                        : ''
-                    }`}
+                          ? '&vq=hd1080'
+                          : videoQuality === '720'
+                            ? '&vq=hd720'
+                            : videoQuality === '480'
+                              ? '&vq=large'
+                              : ''
+                      }`}
                     className="w-full h-full border-0"
                     allowFullScreen
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1470,18 +1472,18 @@ export default function TheatreRoom() {
               {/* Status Indicator (Top Left - subtle hover during playback, always visible when paused) */}
               <div
                 className={cn(
-                  'absolute top-4 left-4 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/10 z-10 transition-opacity duration-300 pointer-events-none',
+                  'cinema-status-badge absolute top-4 left-4 flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-[3px] border border-white/20 z-40 transition-opacity duration-300 pointer-events-none shadow-[0_2px_12px_rgba(0,0,0,0.5)]',
                   room.playback.isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
                 )}
               >
                 <div
                   className={cn(
                     'w-2 h-2 rounded-full',
-                    room.playback.isPlaying ? 'bg-red-500 animate-pulse' : 'bg-white/30'
+                    room.playback.isPlaying ? 'bg-red-500 animate-pulse' : 'cinema-status-dot-paused bg-white/90 shadow-[0_0_6px_rgba(255,255,255,0.7)]'
                   )}
                   aria-hidden="true"
                 />
-                <span className="text-[10px] font-mono tracking-widest text-white/80 uppercase">
+                <span className="text-[10px] font-mono tracking-widest text-white keep-white uppercase font-semibold">
                   {room.playback.isPlaying ? 'PROJECTION LIVE' : 'PAUSED'}
                 </span>
               </div>
@@ -1489,7 +1491,7 @@ export default function TheatreRoom() {
               {/* Host vs Viewer Badge (Top Right - subtle hover during playback, always visible when paused) */}
               <div
                 className={cn(
-                  'absolute top-4 right-4 z-10 transition-opacity duration-300 pointer-events-none',
+                  'absolute top-4 right-4 z-40 transition-opacity duration-300 pointer-events-none',
                   room.playback.isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
                 )}
               >
@@ -1525,9 +1527,9 @@ export default function TheatreRoom() {
 
           {/* ── AUDITORIUM PROJECTION CONSOLE & CONTROLS ── */}
           <div className="flex-shrink-0 px-3 md:px-8 pb-2.5">
-            <div className="max-w-5xl mx-auto glass-panel rounded-[4px] px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 border border-white/5 space-y-2">
+            <div className="max-w-5xl mx-auto glass-panel rounded-[4px] px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 border border-vc-border space-y-2">
               {/* ── MASTER SYNCHRONIZED PLAYBACK CONSOLE (Host Controlled) ── */}
-              <div className="flex items-center gap-3 pb-2.5 border-b border-white/5 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-3 pb-2.5 border-b border-vc-border flex-wrap sm:flex-nowrap">
                 {/* Play / Pause Toggle Button */}
                 {isHost ? (
                   <button
@@ -1540,7 +1542,7 @@ export default function TheatreRoom() {
                   </button>
                 ) : (
                   <div
-                    className="h-8 px-3 flex items-center gap-1.5 rounded-[3px] bg-white/5 border border-white/10 text-white/40 text-[11px] font-mono flex-shrink-0 cursor-not-allowed"
+                    className="h-8 px-3 flex items-center gap-1.5 rounded-[3px] bg-vc-bg-card border border-vc-border text-vc-text-muted text-[11px] font-mono flex-shrink-0 cursor-not-allowed"
                     title={`Playback controlled by host (${room.hostName})`}
                   >
                     <span>{room.playback.isPlaying ? '▶' : '❚❚'}</span>
@@ -1553,14 +1555,14 @@ export default function TheatreRoom() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={handleHostSkipBackward10}
-                      className="h-8 px-2.5 rounded-[3px] bg-white/5 hover:bg-white/15 border border-white/10 text-white/80 hover:text-white text-xs font-mono transition-colors"
+                      className="h-8 px-2.5 rounded-[3px] bg-vc-bg-card hover:bg-vc-bg-elevated border border-vc-border text-vc-text-primary hover:text-vc-gold text-xs font-mono transition-colors"
                       title="Host: Skip Backward 10 Seconds"
                     >
                       ⏪ -10s
                     </button>
                     <button
                       onClick={handleHostSkipForward10}
-                      className="h-8 px-2.5 rounded-[3px] bg-white/5 hover:bg-white/15 border border-white/10 text-white/80 hover:text-white text-xs font-mono transition-colors"
+                      className="h-8 px-2.5 rounded-[3px] bg-vc-bg-card hover:bg-vc-bg-elevated border border-vc-border text-vc-text-primary hover:text-vc-gold text-xs font-mono transition-colors"
                       title="Host: Skip Forward 10 Seconds"
                     >
                       +10s ⏩
@@ -1572,7 +1574,7 @@ export default function TheatreRoom() {
                 <div
                   onClick={handleSeekClick}
                   className={cn(
-                    'flex-1 min-w-[120px] h-2 rounded-full overflow-hidden bg-white/10 relative group transition-all',
+                    'flex-1 min-w-[120px] h-2 rounded-full overflow-hidden bg-vc-border-strong/30 border border-vc-border/40 relative group transition-all',
                     isHost ? 'cursor-pointer hover:h-2.5' : 'cursor-default'
                   )}
                   role="progressbar"
@@ -1752,8 +1754,8 @@ export default function TheatreRoom() {
                           isSelected
                             ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
                             : isHost
-                            ? 'bg-white/5 text-white/70 hover:text-white border border-white/10 hover:border-white/25 cursor-pointer'
-                            : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed opacity-40'
+                              ? 'bg-white/5 text-white/70 hover:text-white border border-white/10 hover:border-white/25 cursor-pointer'
+                              : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed opacity-40'
                         )}
                         title={
                           isHost
@@ -1786,8 +1788,8 @@ export default function TheatreRoom() {
                       projectionMode === 'stream'
                         ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
                         : isHost
-                        ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
-                        : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
+                          ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                          : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                     )}
                   >
                     ▶ Stream
@@ -1802,8 +1804,8 @@ export default function TheatreRoom() {
                         projectionMode === 'trailer'
                           ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
                           : isHost
-                          ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
-                          : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
+                            ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                            : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                       )}
                     >
                       🎬 Trailer
@@ -1818,8 +1820,8 @@ export default function TheatreRoom() {
                       projectionMode === 'artwork'
                         ? 'bg-vc-gold/20 text-vc-gold border border-vc-gold/50 font-semibold'
                         : isHost
-                        ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
-                        : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
+                          ? 'bg-white/5 text-white/50 hover:text-white border border-transparent'
+                          : 'bg-white/5 text-white/30 border border-transparent cursor-not-allowed'
                     )}
                   >
                     🖼 Art
@@ -1864,8 +1866,8 @@ export default function TheatreRoom() {
                         theatreAudioLang === lang.id
                           ? 'bg-vc-gold text-black font-bold shadow-[0_0_8px_rgba(198,167,106,0.3)]'
                           : isHost
-                          ? 'bg-white/5 text-white/70 hover:text-white border border-white/10'
-                          : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed opacity-40'
+                            ? 'bg-white/5 text-white/70 hover:text-white border border-white/10'
+                            : 'bg-white/5 text-white/30 border border-white/5 cursor-not-allowed opacity-40'
                       )}
                       title={isHost ? lang.description : `${lang.label} (Controlled by Host 👑)`}
                     >
@@ -2021,10 +2023,10 @@ export default function TheatreRoom() {
         {/* ── REAL-TIME CHAT DRAWER ── */}
         {chatOpen && (
           <aside
-            className="w-72 sm:w-80 flex-shrink-0 border-l border-white/5 flex flex-col bg-black/60 backdrop-blur-md animate-slide-down z-10"
+            className="w-72 sm:w-80 flex-shrink-0 border-l border-vc-border flex flex-col bg-vc-bg-card/95 backdrop-blur-md animate-slide-down z-10 theatre-drawer transition-colors duration-200"
             aria-label="Theatre Chat"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-vc-border">
               <div className="flex items-center gap-2">
                 <h2 className="text-xs font-mono font-semibold text-vc-text-primary uppercase tracking-wider">
                   Auditorium Chat
@@ -2040,7 +2042,7 @@ export default function TheatreRoom() {
                         clearChat();
                       }
                     }}
-                    className="text-[9px] font-mono text-white/50 hover:text-vc-gold transition-colors px-1 py-0.5 rounded hover:bg-white/5"
+                    className="text-[9px] font-mono text-vc-text-muted hover:text-vc-gold transition-colors px-1 py-0.5 rounded hover:bg-vc-bg-elevated"
                     title="Host Authority: Clear all chat history"
                   >
                     🧹 Clear
@@ -2048,7 +2050,7 @@ export default function TheatreRoom() {
                 )}
                 <button
                   onClick={() => setChatOpen(false)}
-                  className="text-white/40 hover:text-white transition-colors"
+                  className="text-vc-text-muted hover:text-vc-text-primary transition-colors"
                   aria-label="Close Chat"
                 >
                   ✕
@@ -2073,7 +2075,7 @@ export default function TheatreRoom() {
                       key={msg.id}
                       className={cn(
                         'flex gap-2.5',
-                        isCurrentUser && 'bg-white/[0.02] p-1.5 rounded-[3px]'
+                        isCurrentUser && 'bg-vc-gold/5 border border-vc-gold/20 p-1.5 rounded-[3px]'
                       )}
                     >
                       <div
@@ -2096,7 +2098,7 @@ export default function TheatreRoom() {
                           >
                             {msg.userName}
                           </span>
-                          <span className="text-[9px] text-white/30 font-mono flex-shrink-0">
+                          <span className="text-[9px] text-vc-text-muted font-mono flex-shrink-0">
                             {msg.timestamp}
                           </span>
                         </div>
@@ -2112,7 +2114,7 @@ export default function TheatreRoom() {
             </div>
 
             {/* Message Input Form */}
-            <div className="p-3 border-t border-white/5">
+            <div className="p-3 border-t border-vc-border">
               {user ? (
                 <form onSubmit={handleChatSubmit} className="flex gap-2">
                   <input
@@ -2127,7 +2129,7 @@ export default function TheatreRoom() {
                     }
                     maxLength={300}
                     className={cn(
-                      'flex-1 bg-white/5 border border-white/10 rounded-[3px] px-3 py-2 text-xs text-vc-text-primary placeholder-white/30 focus:border-vc-gold/50 focus:outline-none transition-colors',
+                      'flex-1 bg-vc-bg-base border border-vc-border rounded-[3px] px-3 py-2 text-xs text-vc-text-primary placeholder:text-vc-text-muted/50 focus:border-vc-gold/60 focus:outline-none transition-colors',
                       isMuted && 'opacity-50 cursor-not-allowed bg-red-950/20 border-red-500/30'
                     )}
                   />
@@ -2140,7 +2142,7 @@ export default function TheatreRoom() {
                   </button>
                 </form>
               ) : (
-                <div className="text-center p-2 rounded-[3px] bg-white/5 border border-white/10">
+                <div className="text-center p-2 rounded-[3px] bg-vc-bg-base border border-vc-border">
                   <p className="text-[11px] text-vc-text-muted mb-1">Sign in to join the conversation</p>
                   <Link to="/login" className="text-xs font-mono text-vc-gold hover:underline">
                     Sign In &rarr;
@@ -2282,8 +2284,10 @@ export default function TheatreRoom() {
                                 </span>
                                 <p className="text-xs font-semibold text-white truncate">{m.title}</p>
                               </div>
-                              <p className="text-[10px] text-vc-text-muted">
-                                {m.year} &middot; {m.genre} &middot; ★ {m.rating}
+                              <p className="text-[10px] text-vc-text-muted flex items-center gap-1 flex-wrap">
+                                <span>{m.year} &middot; {m.genre} &middot;</span>
+                                <span className="text-[#F5C518] font-bold">IMDb</span>
+                                <span>★ {m.rating}</span>
                               </p>
                             </div>
                           </div>
@@ -2383,8 +2387,10 @@ export default function TheatreRoom() {
                         )}
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-white truncate">{m.title}</p>
-                          <p className="text-[10px] text-vc-text-muted">
-                            {m.year} &middot; {m.genre} &middot; ★ {m.rating} &middot; {m.originCountry}
+                          <p className="text-[10px] text-vc-text-muted flex items-center gap-1 flex-wrap">
+                            <span>{m.year} &middot; {m.genre} &middot;</span>
+                            <span className="text-[#F5C518] font-bold">IMDb</span>
+                            <span>★ {m.rating} &middot; {m.originCountry}</span>
                           </p>
                         </div>
                       </div>
@@ -2583,36 +2589,36 @@ export default function TheatreRoom() {
             <div className="px-5 py-3 border-b border-white/5 bg-black/40 flex items-center gap-2 overflow-x-auto flex-shrink-0">
               {theatreSeriesDetails?.seasons && theatreSeriesDetails.seasons.length > 0
                 ? theatreSeriesDetails.seasons.map((s) => (
-                    <button
-                      key={s.season_number}
-                      onClick={() => handleDrawerSeasonChange(s.season_number)}
-                      className={cn(
-                        'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap flex items-center gap-1.5',
-                        drawerSeason === s.season_number
-                          ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
-                          : 'bg-white/5 border border-white/10 text-white/70 hover:text-white hover:border-white/20'
-                      )}
-                    >
-                      <span>Season {s.season_number}</span>
-                      <span className={cn('text-[10px]', drawerSeason === s.season_number ? 'text-black/70' : 'text-white/40')}>
-                        ({s.episode_count} eps)
-                      </span>
-                    </button>
-                  ))
+                  <button
+                    key={s.season_number}
+                    onClick={() => handleDrawerSeasonChange(s.season_number)}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap flex items-center gap-1.5',
+                      drawerSeason === s.season_number
+                        ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
+                        : 'bg-white/5 border border-white/10 text-white/70 hover:text-white hover:border-white/20'
+                    )}
+                  >
+                    <span>Season {s.season_number}</span>
+                    <span className={cn('text-[10px]', drawerSeason === s.season_number ? 'text-black/70' : 'text-white/40')}>
+                      ({s.episode_count} eps)
+                    </span>
+                  </button>
+                ))
                 : [1, 2, 3, 4].map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => handleDrawerSeasonChange(s)}
-                      className={cn(
-                        'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap',
-                        drawerSeason === s
-                          ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
-                          : 'bg-white/5 border border-white/10 text-white/70 hover:text-white'
-                      )}
-                    >
-                      Season {s}
-                    </button>
-                  ))}
+                  <button
+                    key={s}
+                    onClick={() => handleDrawerSeasonChange(s)}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap',
+                      drawerSeason === s
+                        ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
+                        : 'bg-white/5 border border-white/10 text-white/70 hover:text-white'
+                    )}
+                  >
+                    Season {s}
+                  </button>
+                ))}
             </div>
 
             {/* Episode Cards Grid */}
@@ -2706,8 +2712,8 @@ export default function TheatreRoom() {
                             isCurrentEp
                               ? 'border-vc-gold bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.3)]'
                               : isHost
-                              ? 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:border-vc-gold/50 cursor-pointer'
-                              : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
+                                ? 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:border-vc-gold/50 cursor-pointer'
+                                : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
                           )}
                         >
                           <span className="text-[9px] font-mono opacity-70">EPISODE</span>

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import { AuthProvider } from './context/AuthContext';
 import { WatchModalProvider } from './context/WatchModalContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { activateAdShield } from './utils/adShield';
 
@@ -11,7 +12,6 @@ const Movies = lazy(() => import('./pages/Movies'));
 const Series = lazy(() => import('./pages/Series'));
 const CreateTheatre = lazy(() => import('./pages/CreateTheatre'));
 const JoinTheatre = lazy(() => import('./pages/JoinTheatre'));
-const TheatreDemo = lazy(() => import('./pages/TheatreDemo'));
 const TheatreRoom = lazy(() => import('./pages/TheatreRoom'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -44,37 +44,38 @@ function App() {
 
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <WatchModalProvider>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<MainLayout />}>
-                {/* Public Catalogue & Discovery */}
-                <Route index element={<Home />} />
-                <Route path="movies" element={<Movies />} />
-                <Route path="series" element={<Series />} />
-                <Route path="create-theatre" element={<CreateTheatre />} />
-                <Route path="join-theatre" element={<JoinTheatre />} />
+      <ThemeProvider>
+        <AuthProvider>
+          <WatchModalProvider>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<MainLayout />}>
+                  {/* Public Catalogue & Discovery */}
+                  <Route index element={<Home />} />
+                  <Route path="movies" element={<Movies />} />
+                  <Route path="series" element={<Series />} />
+                  <Route path="create-theatre" element={<CreateTheatre />} />
+                  <Route path="join-theatre" element={<JoinTheatre />} />
 
-                {/* Authentication Routes */}
-                <Route path="login" element={<Login />} />
-                <Route path="signup" element={<Signup />} />
-                <Route path="forgot-password" element={<ForgotPassword />} />
+                  {/* Authentication Routes */}
+                  <Route path="login" element={<Login />} />
+                  <Route path="signup" element={<Signup />} />
+                  <Route path="forgot-password" element={<ForgotPassword />} />
 
-                {/* Protected Routes (Require Authentication) */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="profile" element={<Profile />} />
-                  <Route path="settings" element={<Settings />} />
+                  {/* Protected Routes (Require Authentication) */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="settings" element={<Settings />} />
+                  </Route>
                 </Route>
-              </Route>
 
-              {/* Standalone Fullscreen Theatre Player */}
-              <Route path="/theatre/demo" element={<TheatreDemo />} />
-              <Route path="/theatre/:roomId" element={<TheatreRoom />} />
-            </Routes>
-          </Suspense>
-        </WatchModalProvider>
-      </AuthProvider>
+                {/* Standalone Fullscreen Theatre Player */}
+                <Route path="/theatre/:roomId" element={<TheatreRoom />} />
+              </Routes>
+            </Suspense>
+          </WatchModalProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

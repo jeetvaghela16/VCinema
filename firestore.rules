@@ -26,7 +26,7 @@ service cloud.firestore {
     // THEATRES COLLECTION: /theatres/{theatreId}
     // =========================================================================
     match /theatres/{theatreId} {
-      // Public read allows viewers to query by 6-character room code or check passkey
+      // Public read allows viewers to query by 6-character room code or check password
       allow read: if true;
 
       // Only authenticated users can create an auditorium; must be designated as the host

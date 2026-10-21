@@ -64,7 +64,7 @@ export default function Home() {
       <CinematicHero movie={heroMovie} />
 
       {/* ── Cinematic Lobby Foyer Threshold ── */}
-      <div className="relative max-w-7xl mx-auto px-5 sm:px-8 md:px-10 py-6 my-2" aria-hidden="true">
+      <div className="relative max-w-7xl mx-auto px-5 sm:px-8 md:px-10 pt-4 pb-2 my-1" aria-hidden="true">
         <div className="flex items-center justify-between gap-4 border-y border-vc-border/50 py-3">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-vc-gold shadow-[0_0_6px_#c6a76a]" />
@@ -88,7 +88,7 @@ export default function Home() {
       </div>
 
       {/* ── Auditorium Screenings & Sections ── */}
-      <div className="space-y-6 sm:space-y-10">
+      <div className="space-y-2 sm:space-y-3">
         <NowShowing movies={nowShowing} />
         <ContinueWatching movies={continueWatching} />
         <PopularMovies movies={popular} />

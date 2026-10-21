@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../utils/cn';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '../../context/ThemeContext';
 import { secureLogger } from '../../utils/secureLogger';
 
 const NAV_LINKS = [
@@ -16,6 +17,7 @@ export default function Navbar() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  const { theme, toggleTheme } = useTheme();
   const { user, profile, isAuthenticated, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -95,8 +97,8 @@ export default function Navbar() {
           'fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 sm:px-8 md:px-10',
           'h-[72px] transition-all duration-300 ease-out',
           scrolled
-            ? 'bg-vc-bg-base/90 backdrop-blur-md border-b border-vc-border/80 shadow-[0_8px_30px_rgba(0,0,0,0.8)]'
-            : 'bg-gradient-to-b from-black/80 via-black/40 to-transparent border-b border-transparent',
+            ? 'bg-vc-bg-base/90 backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.8)]'
+            : 'bg-gradient-to-b from-vc-bg-base/80 via-vc-bg-base/30 to-transparent dark:from-black/80 dark:via-black/40 dark:to-transparent',
         )}
         role="banner"
       >
@@ -131,23 +133,24 @@ export default function Navbar() {
                 )
               }
             >
-              {({ isActive }) => (
-                <>
-                  <span>{link.label}</span>
-                  {isActive && (
-                    <span
-                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-[2px] bg-vc-gold rounded-full shadow-[0_0_8px_#c6a76a]"
-                      aria-hidden="true"
-                    />
-                  )}
-                </>
-              )}
+              <span>{link.label}</span>
             </NavLink>
           ))}
         </nav>
 
         {/* Desktop Right Actions */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-3">
+          {/* Quick Theme Switcher */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 rounded-full border border-vc-border/80 bg-vc-bg-card/70 hover:border-vc-gold/50 text-vc-text-muted hover:text-vc-gold transition-all text-xs cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-vc-gold shadow-sm"
+            title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            aria-label={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+          >
+            {theme === 'dark' ? '☀️' : '🌑'}
+          </button>
+
           <Link
             to="/join-theatre"
             className="text-xs font-mono tracking-wider text-vc-text-muted hover:text-vc-gold px-3 py-1.5 rounded-[3px] border border-vc-border/80 hover:border-vc-gold/40 transition-all uppercase"
@@ -216,6 +219,18 @@ export default function Navbar() {
                   >
                     Account Settings
                   </Link>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={toggleTheme}
+                    className="w-full text-left px-4 py-2 text-xs text-vc-text-muted hover:text-vc-gold hover:bg-white/[0.04] transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>Theme</span>
+                    <span className="font-mono text-[10px] text-vc-gold font-semibold uppercase">
+                      {theme === 'dark' ? '🌑 Dark' : '☀️ Light'}
+                    </span>
+                  </button>
 
                   <div className="border-t border-vc-border/60 my-1" />
 
@@ -326,7 +341,7 @@ export default function Navbar() {
               </NavLink>
             ))}
 
-            <div className="pt-2 border-t border-vc-border/50">
+            <div className="pt-2 border-t border-vc-border/50 space-y-2">
               <NavLink
                 to="/join-theatre"
                 onClick={() => setDrawerOpen(false)}
@@ -335,6 +350,21 @@ export default function Navbar() {
                 <span>Enter Room Code</span>
                 <span>VCX-</span>
               </NavLink>
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-[4px] text-xs font-medium text-vc-text-primary bg-vc-bg-card/70 border border-vc-border hover:border-vc-gold/40 transition-colors"
+                title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-base">{theme === 'dark' ? '☀️' : '🌙'}</span>
+                  <span>Visual Theme</span>
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-vc-bg-base border border-vc-border text-vc-gold">
+                  {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+                </span>
+              </button>
             </div>
           </nav>
         </div>

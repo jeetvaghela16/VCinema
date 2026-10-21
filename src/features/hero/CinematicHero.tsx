@@ -29,40 +29,27 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
           <img
             src={movie.backdropUrl}
             alt={title}
-            className="w-full h-full object-cover object-center opacity-40 scale-105"
+            className="w-full h-full object-cover object-center opacity-25 dark:opacity-40 scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#080807] via-[#080807]/75 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#080807] via-[#080807]/85 to-transparent" />
+          <div className="hero-backdrop-fade-t absolute inset-0 pointer-events-none" />
+          <div className="hero-backdrop-fade-r absolute inset-0 pointer-events-none" />
         </div>
       )}
 
       {/* Deep twilight space & warm amber horizon radial gradients */}
       <div
-        className="absolute inset-0 z-0 pointer-events-none"
+        className="hero-backdrop-atmosphere absolute inset-0 z-0 pointer-events-none"
         aria-hidden="true"
-        style={{
-          background: `
-            radial-gradient(ellipse 95% 65% at 75% 35%, rgba(42, 31, 20, 0.75) 0%, transparent 70%),
-            radial-gradient(ellipse 70% 85% at 20% 75%, rgba(20, 10, 30, 0.6) 0%, transparent 65%),
-            radial-gradient(circle at 85% 20%, rgba(198, 167, 106, 0.12) 0%, transparent 50%),
-            linear-gradient(180deg, #090908 0%, #0c0b09 45%, #080807 100%)
-          `,
-        }}
       />
 
       {/* Atmospheric projector light beam / diagonal sweep (Desktop & Tablet) */}
       <div
-        className="absolute top-0 right-0 w-[85vw] md:w-[60vw] h-[85vh] z-[1] pointer-events-none opacity-40 mix-blend-screen"
+        className="hero-projector-beam absolute top-0 right-0 w-[85vw] md:w-[60vw] h-[85vh] z-[1] pointer-events-none"
         aria-hidden="true"
-        style={{
-          background:
-            'conic-gradient(from 225deg at 100% 0%, transparent 0deg, rgba(198,167,106,0.14) 22deg, rgba(244,240,232,0.06) 35deg, transparent 48deg)',
-          filter: 'blur(16px)',
-        }}
       />
 
       {/* Subtle distant mountain & horizon landscape silhouette */}
-      <div className="absolute inset-x-0 bottom-12 md:bottom-20 z-[2] pointer-events-none opacity-45">
+      <div className="hero-silhouette absolute inset-x-0 bottom-12 md:bottom-20 z-[2] pointer-events-none opacity-45">
         <svg
           className="w-full h-40 md:h-64 object-cover"
           viewBox="0 0 1440 280"
@@ -101,22 +88,16 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
 
       {/* Cinematic Film Vignette & Bottom Floor Blend */}
       <div
-        className="absolute inset-0 z-[3] pointer-events-none"
+        className="hero-vignette absolute inset-0 z-[3] pointer-events-none"
         aria-hidden="true"
-        style={{
-          background: `
-            linear-gradient(to top, #080807 0%, rgba(8,8,7,0.92) 15%, rgba(8,8,7,0.5) 45%, transparent 70%),
-            radial-gradient(circle at 50% 50%, transparent 60%, rgba(8,8,7,0.7) 100%)
-          `,
-        }}
       />
 
       {/* Floating dust motes (CSS micro-particles, reduced-motion friendly) */}
       <div className="absolute inset-0 z-[4] pointer-events-none overflow-hidden opacity-30">
-        <div className="absolute top-[25%] left-[65%] w-1.5 h-1.5 rounded-full bg-[#c6a76a] blur-[0.5px] shadow-[0_0_8px_#c6a76a]" />
-        <div className="absolute top-[40%] left-[80%] w-1 h-1 rounded-full bg-[#f4f0e8] blur-[0.5px]" />
-        <div className="absolute top-[30%] left-[45%] w-1 h-1 rounded-full bg-[#c6a76a]" />
-        <div className="absolute top-[55%] left-[72%] w-1.5 h-1.5 rounded-full bg-[#f4f0e8] opacity-60" />
+        <div className="absolute top-[25%] left-[65%] w-1.5 h-1.5 rounded-full bg-vc-gold blur-[0.5px] shadow-[0_0_8px_#c6a76a]" />
+        <div className="absolute top-[40%] left-[80%] w-1 h-1 rounded-full bg-vc-gold/70 dark:bg-[#f4f0e8] blur-[0.5px]" />
+        <div className="absolute top-[30%] left-[45%] w-1 h-1 rounded-full bg-vc-gold" />
+        <div className="absolute top-[55%] left-[72%] w-1.5 h-1.5 rounded-full bg-vc-gold/50 dark:bg-[#f4f0e8] opacity-60" />
       </div>
 
       {/* ── Main Hero Container ── */}
@@ -128,11 +109,11 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
             
             {/* Festival / Curator Micro-Badge */}
             <div className="flex items-center gap-2.5 mb-3.5 sm:mb-4">
-              <span className="inline-flex items-center gap-1.5 text-[9.5px] sm:text-[10px] font-sans font-semibold tracking-[0.22em] text-vc-gold uppercase px-2.5 py-1 border border-vc-gold/35 rounded-[2px] bg-black/50 backdrop-blur-sm shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-vc-gold animate-pulse" aria-hidden="true" />
+              <span className="hero-premiere-badge inline-flex items-center gap-1.5 text-[10px] sm:text-[10.5px] font-sans font-bold tracking-[0.22em] uppercase px-2.5 py-1 rounded-[3px] backdrop-blur-sm transition-all duration-200">
+                <span className="badge-dot w-1.5 h-1.5 rounded-full animate-pulse" aria-hidden="true" />
                 Featured Premiere
               </span>
-              <span className="text-[11px] sm:text-xs text-vc-text-muted/90 font-medium">
+              <span className="text-[11px] sm:text-xs text-vc-text-muted font-medium">
                 {year} &middot; {duration} &middot; 4K HDR &middot; Dolby 5.1
               </span>
             </div>
@@ -147,7 +128,7 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
               {[genre, 'Grand Cinema', 'Official Selection'].map((tag) => (
                 <span
                   key={tag}
-                  className="text-[10px] sm:text-[11px] text-vc-text-muted bg-white/[0.03] border border-vc-border/80 px-2.5 py-0.5 rounded-[2px]"
+                  className="text-[10px] sm:text-[11px] text-vc-text-muted bg-vc-bg-card/70 dark:bg-white/[0.03] border border-vc-border/80 px-2.5 py-0.5 rounded-[2px]"
                 >
                   {tag}
                 </span>
@@ -179,7 +160,7 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
               <Link
                 to="/create-theatre"
                 state={{ preselectedMovieId: movie?.id }}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-vc-bg-card/80 text-vc-text-primary text-sm font-medium rounded-[3px] border border-vc-border/90 hover:border-vc-gold/40 hover:bg-white/5 transition-all duration-200 active:scale-95 backdrop-blur-sm"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-vc-bg-card/80 text-vc-text-primary text-sm font-medium rounded-[3px] border border-vc-border/90 hover:border-vc-gold/40 hover:bg-vc-bg-elevated/70 dark:hover:bg-white/5 transition-all duration-200 active:scale-95 backdrop-blur-sm"
                 aria-label={`Create Theatre for ${title}`}
               >
                 <span>🏛 CREATE THEATRE</span>
@@ -190,7 +171,7 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
           {/* ── RIGHT COLUMN: Subtle Cinematic Visual Treatment (Desktop & Tablet) ── */}
           <div className="hidden lg:flex lg:col-span-5 flex-col justify-end items-end animate-fade-in animate-delay-200">
             {/* Holographic Cinema Stage Telemetry Card */}
-            <div className="w-full max-w-sm glass-panel p-5 rounded-[4px] border border-vc-border-strong/70 relative overflow-hidden group shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+            <div className="w-full max-w-sm glass-panel p-5 rounded-[4px] border border-vc-border-strong/70 relative overflow-hidden group shadow-xl dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
               
               {/* Subtle top spotlight glare */}
               <div
@@ -206,7 +187,7 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
                 <span>[ 2.39 : 1 ANAMORPHIC ]</span>
                 <span className="flex items-center gap-1.5 text-vc-gold">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                  REC ● 24 FPS
+                  REC ● 60 FPS
                 </span>
               </div>
 
@@ -249,31 +230,16 @@ export default function CinematicHero({ movie }: CinematicHeroProps) {
                 <div>
                   <p className="text-[11px] font-medium text-vc-text-primary flex items-center gap-1.5">
                     <span className="text-vc-gold font-serif">V</span>
-                    Auditorium VCX-4821
+                    Auditorium VCX-XXXX
                   </p>
                   <p className="text-[10px] text-vc-text-muted">
-                    14 viewers synchronized in 4K Atmos
+                   Viewers synchronized in 4K Atmos
                   </p>
                 </div>
-
-                <Link
-                  to="/theatre/demo"
-                  className="text-[10px] font-semibold text-vc-gold hover:text-vc-gold/80 px-2.5 py-1 rounded-[2px] border border-vc-gold/30 hover:border-vc-gold/60 transition-colors uppercase tracking-wider"
-                >
-                  Join Screen
-                </Link>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Subtle Scroll Indicator */}
-      <div className="absolute bottom-6 right-8 sm:right-10 z-10 hidden md:flex flex-col items-center gap-2 opacity-50">
-        <span className="text-[9px] font-sans font-medium tracking-[0.25em] text-vc-text-muted uppercase">
-          Explore
-        </span>
-        <div className="w-[1px] h-6 bg-gradient-to-b from-vc-gold to-transparent" />
       </div>
     </section>
   );
