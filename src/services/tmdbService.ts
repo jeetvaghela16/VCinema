@@ -1,4 +1,5 @@
 import type { Movie, Series } from '../types';
+import { secureLogger } from '../utils/secureLogger';
 
 /**
  * The Movie Database (TMDB) API Client & Global Showcase Service
@@ -11,27 +12,38 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
 
-// Check environment variable or browser local storage
+const STORAGE_SLOT = '__vc_catalog_cred_v1__';
+
+let inMemoryTmdbKey = '';
+
+// Check environment variable or memory (never leaves secrets in DevTools Local Storage)
 export function getTmdbApiKey(): string {
   const envKey = import.meta.env.VITE_TMDB_API_KEY as string | undefined;
   if (envKey && envKey.trim().length > 0 && !envKey.includes('your-api-key')) {
     return envKey.trim();
   }
+  if (inMemoryTmdbKey) {
+    return inMemoryTmdbKey;
+  }
   if (typeof window !== 'undefined') {
-    const localKey = localStorage.getItem('vcinema_tmdb_api_key');
-    if (localKey && localKey.trim().length > 0) {
-      return localKey.trim();
+    try {
+      localStorage.removeItem('vcinema_tmdb_api_key');
+      localStorage.removeItem(STORAGE_SLOT);
+    } catch {
+      // Ignore
     }
   }
   return '';
 }
 
 export function setTmdbApiKey(key: string): void {
+  inMemoryTmdbKey = key.trim();
   if (typeof window !== 'undefined') {
-    if (key.trim()) {
-      localStorage.setItem('vcinema_tmdb_api_key', key.trim());
-    } else {
+    try {
       localStorage.removeItem('vcinema_tmdb_api_key');
+      localStorage.removeItem(STORAGE_SLOT);
+    } catch {
+      // Ignore
     }
   }
 }
@@ -156,12 +168,12 @@ async function tmdbFetch<T>(endpoint: string, params: Record<string, string> = {
   try {
     const res = await fetch(url.toString());
     if (!res.ok) {
-      console.warn(`TMDB API response not OK [${res.status}]: ${res.statusText}`);
+      secureLogger.warn(`TMDB API response not OK [${res.status}]: ${res.statusText}`);
       return null;
     }
     return (await res.json()) as T;
   } catch (err) {
-    console.error('TMDB API network error:', err);
+    secureLogger.error('TMDB API network error:', err);
     return null;
   }
 }

@@ -18,6 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import { createTheatreRoom, type CreateTheatreMediaData } from '../services/theatreService';
 import type { TheatreFormat } from '../types/theatre';
 import type { Movie, Series } from '../types';
+import { secureLogger } from '../utils/secureLogger';
 
 function extractYoutubeId(url: string): string | undefined {
   const match = url.match(
@@ -113,7 +114,7 @@ export default function CreateTheatre() {
             }
           }
         })
-        .catch((err) => console.warn('Could not fetch series details:', err))
+        .catch((err) => secureLogger.warn('Could not fetch series details:', err))
         .finally(() => setIsLoadingSeriesDetails(false));
     } else {
       setSeriesDetails(null);
@@ -135,7 +136,7 @@ export default function CreateTheatre() {
         if (movs?.length) setTrendingMovies(movs);
         if (sers?.length) setTrendingSeries(sers);
       })
-      .catch((err) => console.warn('Failed to load trending catalogs:', err))
+      .catch((err) => secureLogger.warn('Failed to load trending catalogs:', err))
       .finally(() => {
         if (isMounted) setIsLoadingCatalogs(false);
       });
@@ -160,7 +161,7 @@ export default function CreateTheatre() {
         const [movs, sers] = await Promise.all([searchMovies(q), searchSeries(q)]);
         setSearchResults([...movs, ...sers]);
       } catch (err) {
-        console.warn('Search failed:', err);
+        secureLogger.warn('Search failed:', err);
       } finally {
         setIsSearching(false);
       }

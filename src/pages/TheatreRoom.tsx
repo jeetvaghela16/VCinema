@@ -21,6 +21,7 @@ import type { Movie, Series } from '../types';
 import { PosterArtwork } from '../components/cards/PosterArtwork';
 import { formatTimecode, calculateAuthoritativePosition } from '../services/theatreService';
 import { cn } from '../utils/cn';
+import { secureLogger } from '../utils/secureLogger';
 
 export default function TheatreRoom() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -333,11 +334,11 @@ export default function TheatreRoom() {
     if (!screenRef.current) return;
     if (!document.fullscreenElement) {
       screenRef.current.requestFullscreen().catch((err) => {
-        console.warn('Error entering fullscreen:', err);
+        secureLogger.warn('Error entering fullscreen:', err);
       });
     } else {
       document.exitFullscreen().catch((err) => {
-        console.warn('Error exiting fullscreen:', err);
+        secureLogger.warn('Error exiting fullscreen:', err);
       });
     }
   };

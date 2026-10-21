@@ -17,6 +17,7 @@ import {
 import { syncUserProfile } from '../services/userService';
 import { formatAuthError } from '../lib/firebase/errors';
 import { AuthContext } from './authContextDef';
+import { secureLogger } from '../utils/secureLogger';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const synced = await syncUserProfile(authUser);
         setProfile(synced);
       } catch (syncErr) {
-        console.warn('[VCinema Auth] Profile sync non-blocking warning on signIn:', syncErr);
+        secureLogger.warn('[VCinema Auth] Profile sync non-blocking warning on signIn:', syncErr);
       }
     } catch (err: unknown) {
       const friendlyMessage = formatAuthError(err);
@@ -84,7 +85,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const synced = await syncUserProfile(authUser);
         setProfile(synced);
       } catch (syncErr) {
-        console.warn('[VCinema Auth] Profile sync non-blocking warning on signUp:', syncErr);
+        secureLogger.warn('[VCinema Auth] Profile sync non-blocking warning on signUp:', syncErr);
       }
     } catch (err: unknown) {
       const friendlyMessage = formatAuthError(err);
@@ -106,7 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const synced = await syncUserProfile(authUser);
         setProfile(synced);
       } catch (syncErr) {
-        console.warn('[VCinema Auth] Profile sync non-blocking warning on Google signIn:', syncErr);
+        secureLogger.warn('[VCinema Auth] Profile sync non-blocking warning on Google signIn:', syncErr);
       }
     } catch (err: unknown) {
       const friendlyMessage = formatAuthError(err);

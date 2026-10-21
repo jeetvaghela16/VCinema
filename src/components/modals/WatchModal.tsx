@@ -13,6 +13,7 @@ import {
   type TmdbEpisode,
 } from '../../services/tmdbService';
 import { cn } from '../../utils/cn';
+import { secureLogger } from '../../utils/secureLogger';
 
 interface WatchModalProps {
   item: (Movie | Series) | null;
@@ -87,7 +88,7 @@ export default function WatchModal({ item, isOpen, onClose }: WatchModalProps) {
       .then((eps) => {
         setEpisodesList(eps);
       })
-      .catch((err) => console.warn('Could not load season episodes:', err))
+      .catch((err) => secureLogger.warn('Could not load season episodes:', err))
       .finally(() => setIsLoadingEpisodes(false));
   }, [tmdbId, isTv, selectedSeason]);
 

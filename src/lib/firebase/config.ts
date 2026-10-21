@@ -1,6 +1,13 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
+import {
+  getAuth,
+  initializeAuth,
+  inMemoryPersistence,
+  connectAuthEmulator,
+  type Auth,
+} from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
+import { secureLogger } from '../../utils/secureLogger';
 
 /**
  * VCinema Firebase Configuration
@@ -35,8 +42,8 @@ if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
     // Fallback initialization to prevent crashes when developing without credentials
-    // Logs a warning in console guiding user to .env.local
-    console.warn(
+    // Logs a warning safely via secureLogger
+    secureLogger.warn(
       '[VCinema Firebase] Environment variables not configured or using placeholders. ' +
       'Please copy .env.example to .env.local and populate with your Firebase credentials.'
     );
@@ -53,7 +60,17 @@ if (!getApps().length) {
   app = getApp();
 }
 
-const auth: Auth = getAuth(app);
+let auth: Auth;
+try {
+  // Use in-memory persistence to prevent raw tokens, UIDs, and credentials
+  // from being written into IndexedDB (firebaseLocalStorageDb) or LocalStorage.
+  auth = initializeAuth(app, {
+    persistence: inMemoryPersistence,
+  });
+} catch {
+  auth = getAuth(app);
+}
+
 const db: Firestore = getFirestore(app);
 
 // Optional Emulator Integration
@@ -69,9 +86,9 @@ if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
     const [fsHost, fsPort] = firestoreHost.split(':');
     connectFirestoreEmulator(db, fsHost || 'localhost', Number(fsPort) || 8080);
     
-    console.info(`[VCinema Firebase] Connected to local Emulators: Auth (${authHost}), Firestore (${firestoreHost})`);
+    secureLogger.info(`[VCinema Firebase] Connected to local Emulators: Auth (${authHost}), Firestore (${firestoreHost})`);
   } catch (err) {
-    console.warn('[VCinema Firebase] Could not connect to emulators (may already be connected):', err);
+    secureLogger.warn('[VCinema Firebase] Could not connect to emulators (may already be connected):', err);
   }
 }
 

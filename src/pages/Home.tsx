@@ -15,6 +15,7 @@ import {
   CURATED_GLOBAL_SERIES,
 } from '../services/tmdbService';
 import type { Movie, Series } from '../types';
+import { secureLogger } from '../utils/secureLogger';
 
 export default function Home() {
   const [heroMovie, setHeroMovie] = useState<Movie>(CURATED_GLOBAL_MOVIES[0]);
@@ -48,7 +49,7 @@ export default function Home() {
           setSeries(tv.slice(0, 6));
         }
       } catch (err) {
-        console.warn('Could not fetch live home catalog:', err);
+        secureLogger.warn('Could not fetch live home catalog:', err);
       }
     }
     loadCatalog();

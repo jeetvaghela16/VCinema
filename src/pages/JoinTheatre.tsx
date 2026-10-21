@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { recentTheatres } from '../data/theatres';
 import { getTheatreByCode, getTheatreById } from '../services/theatreService';
 import type { LiveTheatreRoom } from '../types/theatre';
+import { verifyRoomPassword } from '../utils/crypto';
 
 /**
  * Intelligent parser to extract auditorium code or room ID from any input:
@@ -75,7 +76,8 @@ export default function JoinTheatre() {
   const [password, setPassword] = useState('');
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
-  const [pendingPassword, setPendingPassword] = useState<string | undefined>(undefined);
+  const [pendingRoomHash, setPendingRoomHash] = useState<string | null>(null);
+  const [pendingLegacyPassword, setPendingLegacyPassword] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -132,10 +134,11 @@ export default function JoinTheatre() {
       }
 
       // Check if password protected
-      if (room.isPasswordProtected && room.password) {
+      if (room.isPasswordProtected && (room.passwordHash || room.password)) {
         setPasswordRequired(true);
         setPendingRoomId(room.id);
-        setPendingPassword(room.password);
+        setPendingRoomHash(room.passwordHash || null);
+        setPendingLegacyPassword(room.password || null);
         return;
       }
 
@@ -148,9 +151,18 @@ export default function JoinTheatre() {
     }
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === pendingPassword && pendingRoomId) {
+    if (!pendingRoomId) return;
+
+    const isValid = await verifyRoomPassword(
+      password,
+      pendingRoomId,
+      pendingRoomHash,
+      pendingLegacyPassword
+    );
+
+    if (isValid) {
       navigate(`/theatre/${pendingRoomId}`);
     } else {
       setErrorMessage('Incorrect passkey for this private screening.');

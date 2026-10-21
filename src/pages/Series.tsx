@@ -8,6 +8,7 @@ import {
   CURATED_GLOBAL_SERIES,
 } from '../services/tmdbService';
 import type { Series as SeriesType } from '../types';
+import { secureLogger } from '../utils/secureLogger';
 
 const GENRES = ['All', 'Trending Worldwide', 'Sci-Fi & Fantasy', 'Crime', 'Drama', 'Animation', 'Action & Adventure'];
 
@@ -55,7 +56,7 @@ export default function Series() {
       const unique = Array.from(new Map(allMerged.map((s) => [s.id, s])).values());
       setDisplaySeries(unique);
     } catch (err) {
-      console.error('Error loading series:', err);
+      secureLogger.error('Error loading series:', err);
       setDisplaySeries([...CURATED_GLOBAL_SERIES, ...localSeries]);
     } finally {
       setIsLoading(false);

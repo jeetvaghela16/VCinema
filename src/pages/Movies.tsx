@@ -12,6 +12,7 @@ import {
   CURATED_GLOBAL_MOVIES,
 } from '../services/tmdbService';
 import type { Movie } from '../types';
+import { secureLogger } from '../utils/secureLogger';
 
 const GENRES = ['All', 'Trending Worldwide', 'Top Rated', 'Sci-Fi', 'Action', 'Drama', 'Animation', 'Thriller'];
 
@@ -23,6 +24,7 @@ export default function Movies() {
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(getTmdbApiKey());
   const [hasConfiguredKey, setHasConfiguredKey] = useState(isTmdbConfigured());
+  const [showApiKeyPlain, setShowApiKeyPlain] = useState(false);
 
   // Load initial movies
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function Movies() {
       const unique = Array.from(new Map(allMerged.map((m) => [m.id, m])).values());
       setDisplayMovies(unique);
     } catch (err) {
-      console.error('Error loading movies:', err);
+      secureLogger.error('Error loading movies:', err);
       setDisplayMovies([...CURATED_GLOBAL_MOVIES, ...localMovies]);
     } finally {
       setIsLoading(false);
@@ -219,18 +221,31 @@ export default function Movies() {
             </div>
 
             <div className="space-y-2 mb-5">
-              <label className="text-[11px] font-mono tracking-wider text-vc-text-muted uppercase">
-                TMDB API Key (v3)
-              </label>
-              <input
-                type="text"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3..."
-                className="w-full bg-black/60 border border-white/15 focus:border-vc-gold rounded-[3px] px-3 py-2 text-xs font-mono text-white placeholder-white/30 focus:outline-none"
-              />
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-mono tracking-wider text-vc-text-muted uppercase">
+                  TMDB API Key (v3)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyPlain(!showApiKeyPlain)}
+                  className="text-[10px] font-mono text-vc-gold/80 hover:text-vc-gold uppercase tracking-wider transition-colors"
+                >
+                  {showApiKeyPlain ? 'Hide Key' : 'Reveal Key'}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showApiKeyPlain ? 'text' : 'password'}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="e.g. 1a2b3c4d5e6f7a8b9c0d1e2f3..."
+                  autoComplete="off"
+                  spellCheck="false"
+                  className="w-full bg-black/60 border border-white/15 focus:border-vc-gold rounded-[3px] px-3 py-2 text-xs font-mono text-white placeholder-white/30 focus:outline-none"
+                />
+              </div>
               <span className="text-[10px] text-vc-text-muted block">
-                Stored safely in your browser and .env.local.
+                Protected and masked in browser storage.
               </span>
             </div>
 

@@ -57,7 +57,8 @@ export interface LiveTheatreRoom {
   hostPhoto?: string | null;
   maxViewers: number;
   isPasswordProtected: boolean;
-  password?: string | null;
+  password?: string | null; // Legacy room compatibility only
+  passwordHash?: string | null; // Salted SHA-256 hash for secure room entry without DevTools plaintext leak
   playback: PlaybackState;
   createdAt: number;
   updatedAt: number;

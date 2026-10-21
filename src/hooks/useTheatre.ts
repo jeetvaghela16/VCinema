@@ -23,6 +23,7 @@ import type {
 import { movies } from '../data/movies';
 import { CURATED_GLOBAL_MOVIES } from '../services/tmdbService';
 import type { Movie, Series } from '../types';
+import { secureLogger } from '../utils/secureLogger';
 
 export function useTheatre(theatreId: string | undefined) {
   const { user } = useAuth();
@@ -73,7 +74,7 @@ export function useTheatre(theatreId: string | undefined) {
     // 1. Join room presence if user is logged in
     if (user) {
       joinTheatreRoom(theatreId, user, false).catch((err) => {
-        console.warn('Could not register room presence:', err);
+        secureLogger.warn('Could not register room presence:', err);
       });
     }
 

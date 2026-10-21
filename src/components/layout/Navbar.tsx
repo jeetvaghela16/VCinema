@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../utils/cn';
 import { useAuth } from '../../hooks/useAuth';
+import { secureLogger } from '../../utils/secureLogger';
 
 const NAV_LINKS = [
   { label: 'Discover', to: '/' },
@@ -83,7 +84,7 @@ export default function Navbar() {
       setUserMenuOpen(false);
       navigate('/');
     } catch (err) {
-      console.error('Sign out error:', err);
+      secureLogger.error('Sign out error:', err);
     }
   };
 

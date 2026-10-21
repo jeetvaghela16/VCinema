@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '../utils/cn';
 import { useAuth } from '../hooks/useAuth';
 import { updateUserProfile } from '../services/userService';
+import { secureLogger } from '../utils/secureLogger';
 
 type Section = 'Account' | 'Appearance' | 'Playback' | 'Notifications';
 const SECTIONS: Section[] = ['Account', 'Appearance', 'Playback', 'Notifications'];
@@ -86,7 +87,7 @@ export default function Settings() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      console.error('Update name error:', err);
+      secureLogger.error('Update name error:', err);
     } finally {
       setIsSavingName(false);
     }
@@ -97,7 +98,7 @@ export default function Settings() {
       await signOut();
       navigate('/login');
     } catch (err) {
-      console.error('Sign out error:', err);
+      secureLogger.error('Sign out error:', err);
     }
   };
 
@@ -176,8 +177,9 @@ export default function Settings() {
                     </p>
                     <p className="text-xs text-vc-text-muted font-mono truncate">{user?.email}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] font-mono text-vc-gold uppercase px-1.5 py-0.5 rounded-[2px] bg-vc-gold/10 border border-vc-gold/20">
-                        UID: {user?.uid.slice(0, 8)}...
+                      <span className="text-[10px] font-mono text-vc-gold uppercase px-1.5 py-0.5 rounded-[2px] bg-vc-gold/10 border border-vc-gold/20 flex items-center gap-1">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-vc-gold"></span>
+                        Verified Member
                       </span>
                       <span className="text-[10px] text-emerald-400">● Session Active</span>
                     </div>

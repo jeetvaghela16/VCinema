@@ -9,6 +9,7 @@ import {
 import { db, isFirebaseConfigured } from '../lib/firebase/config';
 import type { AuthenticatedUser } from '../types/auth';
 import type { UserProfile } from '../types/user';
+import { secureLogger } from '../utils/secureLogger';
 
 /**
  * Creates or updates the user profile document in Firestore at users/{uid}.
@@ -77,7 +78,7 @@ export async function syncUserProfile(user: AuthenticatedUser): Promise<UserProf
       };
     }
   } catch (error) {
-    console.warn('[VCinema User Profile] Firestore profile sync error, using local fallback:', error);
+    secureLogger.warn('[VCinema User Profile] Firestore profile sync error, using local fallback:', error);
     return fallbackProfile;
   }
 }
@@ -109,7 +110,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
       watchHours: data.watchHours ?? 0,
     };
   } catch (err) {
-    console.warn('[VCinema User Profile] Could not fetch profile from Firestore:', err);
+    secureLogger.warn('[VCinema User Profile] Could not fetch profile from Firestore:', err);
     return null;
   }
 }
@@ -136,6 +137,6 @@ export async function updateUserProfile(
     }
     await updateDoc(userDocRef, sanitizedUpdate);
   } catch (err) {
-    console.warn('[VCinema User Profile] Failed to update Firestore profile:', err);
+    secureLogger.warn('[VCinema User Profile] Failed to update Firestore profile:', err);
   }
 }

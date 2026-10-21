@@ -23,6 +23,8 @@ import type {
   TheatreFormat,
 } from '../types/theatre';
 import type { AuthenticatedUser } from '../types/auth';
+import { hashRoomPassword } from '../utils/crypto';
+import { secureLogger } from '../utils/secureLogger';
 
 /**
  * Character set avoiding ambiguous characters (0, O, 1, I)
@@ -183,6 +185,11 @@ export async function createTheatreRoom(
     audioLanguage: media?.audioLanguage || 'multi',
   };
 
+  let passwordHash: string | null = null;
+  if (params.isPasswordProtected && params.password?.trim()) {
+    passwordHash = await hashRoomPassword(params.password, theatreId);
+  }
+
   const newRoom: LiveTheatreRoom = {
     id: theatreId,
     code: roomCode,
@@ -193,7 +200,7 @@ export async function createTheatreRoom(
     hostPhoto: host.photoURL || null,
     maxViewers: params.maxViewers,
     isPasswordProtected: params.isPasswordProtected,
-    password: params.isPasswordProtected && params.password?.trim() ? params.password.trim() : null as any,
+    passwordHash, // Stored as salted SHA-256 hash; plain text is never stored in Firestore
     playback: initialPlayback,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -500,7 +507,7 @@ export async function endScreening(
       updatedAt: Date.now(),
     });
   } catch (err) {
-    console.error('Error ending screening:', err);
+    secureLogger.error('Error ending screening:', err);
   }
 }
 
@@ -537,7 +544,7 @@ export async function kickParticipant(
       })
     );
   } catch (err) {
-    console.error('Error kicking participant:', err);
+    secureLogger.error('Error kicking participant:', err);
   }
 }
 
@@ -574,7 +581,7 @@ export async function toggleMuteParticipant(
       })
     );
   } catch (err) {
-    console.error('Error muting participant:', err);
+    secureLogger.error('Error muting participant:', err);
   }
 }
 
@@ -607,7 +614,7 @@ export async function toggleLockAuditorium(theatreId: string, isLocked: boolean)
       })
     );
   } catch (err) {
-    console.error('Error locking auditorium:', err);
+    secureLogger.error('Error locking auditorium:', err);
   }
 }
 
@@ -638,6 +645,6 @@ export async function clearChatMessages(theatreId: string): Promise<void> {
       })
     );
   } catch (err) {
-    console.error('Error clearing chat:', err);
+    secureLogger.error('Error clearing chat:', err);
   }
 }
