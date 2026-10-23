@@ -33,6 +33,51 @@ export function useTheatre(theatreId: string | undefined) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Storage key helper for personal chat clear (scoped per auditorium & user)
+  const getStorageKey = useCallback((tid: string, uid?: string) => {
+    return `vcinema_chat_cleared_${tid}_${uid || 'guest'}`;
+  }, []);
+
+  // Personal Chat Clear State: Tracks when and which messages the current user cleared locally
+  const [personalClear, setPersonalClear] = useState<{ clearedAt: number; clearedIds: string[] }>(() => {
+    if (!theatreId) return { clearedAt: 0, clearedIds: [] };
+    try {
+      const raw = localStorage.getItem(getStorageKey(theatreId, user?.uid));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          clearedAt: typeof parsed.clearedAt === 'number' ? parsed.clearedAt : 0,
+          clearedIds: Array.isArray(parsed.clearedIds) ? parsed.clearedIds : [],
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return { clearedAt: 0, clearedIds: [] };
+  });
+
+  // Re-sync personal clear state if auditorium room or user account changes
+  useEffect(() => {
+    if (!theatreId) {
+      setPersonalClear({ clearedAt: 0, clearedIds: [] });
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(getStorageKey(theatreId, user?.uid));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setPersonalClear({
+          clearedAt: typeof parsed.clearedAt === 'number' ? parsed.clearedAt : 0,
+          clearedIds: Array.isArray(parsed.clearedIds) ? parsed.clearedIds : [],
+        });
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    setPersonalClear({ clearedAt: 0, clearedIds: [] });
+  }, [theatreId, user?.uid, getStorageKey]);
+
   const roomRef = useRef<LiveTheatreRoom | null>(null);
   roomRef.current = room;
 
@@ -334,11 +379,37 @@ export function useTheatre(theatreId: string | undefined) {
     [theatreId, isHost]
   );
 
-  // Host Authority: Clear Chat
-  const clearChat = useCallback(async () => {
-    if (!theatreId || !isHost) return;
-    await clearChatMessages(theatreId);
-  }, [theatreId, isHost]);
+  // Personal Authority: Clear Chat for current user only (does not clear chat for others in the room)
+  const clearChat = useCallback(() => {
+    if (!theatreId) return;
+    const maxMsgTime = messages.reduce((max, m) => Math.max(max, m.createdAt || 0), 0);
+    const clearTime = Math.max(Date.now(), maxMsgTime);
+    const currentIds = messages.map((m) => m.id);
+    const newState = {
+      clearedAt: clearTime,
+      clearedIds: currentIds,
+    };
+    setPersonalClear(newState);
+    try {
+      localStorage.setItem(getStorageKey(theatreId, user?.uid), JSON.stringify(newState));
+    } catch {
+      // ignore
+    }
+  }, [theatreId, user?.uid, messages, getStorageKey]);
+
+  // Personal Authority: Restore Chat previously cleared by current user
+  const restoreChat = useCallback(() => {
+    if (!theatreId) return;
+    const emptyState = { clearedAt: 0, clearedIds: [] };
+    setPersonalClear(emptyState);
+    try {
+      localStorage.removeItem(getStorageKey(theatreId, user?.uid));
+    } catch {
+      // ignore
+    }
+  }, [theatreId, user?.uid, getStorageKey]);
+
+  const isChatPersonallyCleared = personalClear.clearedAt > 0 || personalClear.clearedIds.length > 0;
 
   // Host Authority: Low-level playback attribute update (e.g. true movie duration or fine sync)
   const updateRoomPlayback = useCallback(
@@ -374,6 +445,9 @@ export function useTheatre(theatreId: string | undefined) {
     lockAuditorium,
     endRoom,
     clearChat,
+    restoreChat,
+    isChatPersonallyCleared,
+    personalClear,
     sendMessage,
     updateRoomPlayback,
   };

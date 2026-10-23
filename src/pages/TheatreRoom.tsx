@@ -64,13 +64,67 @@ export default function TheatreRoom() {
     lockAuditorium,
     endRoom,
     clearChat,
+    restoreChat,
+    isChatPersonallyCleared,
+    personalClear,
     sendMessage,
     updateRoomPlayback,
   } = useTheatre(roomId);
 
   const [chatOpen, setChatOpen] = useState(true);
   const [chatText, setChatText] = useState('');
-  const [volume, setVolume] = useState(80);
+
+  // Auditorium Chat Filter: only show user messages and major host projection changes (hide seeking, scrubbing, system clutter)
+  // Also filters out messages that have been personally cleared by this user
+  const displayMessages = useMemo(() => {
+    return messages.filter((msg) => {
+      if (!msg || !msg.message) return false;
+
+      // Personal chat clear: hide messages cleared by this user
+      if (personalClear.clearedIds.includes(msg.id)) {
+        return false;
+      }
+      if (personalClear.clearedAt > 0 && msg.createdAt && msg.createdAt <= personalClear.clearedAt) {
+        return false;
+      }
+
+      const text = msg.message.trim();
+      if (!text) return false;
+
+      // Allow major host projection/movie/episode changes
+      if (
+        text.startsWith('Host changed projection to') ||
+        text.includes('changed projection to') ||
+        text.startsWith('Host changed movie to') ||
+        text.startsWith('Host changed episode to')
+      ) {
+        return true;
+      }
+
+      // Filter out automated system or playback/seeking noise
+      const lower = text.toLowerCase();
+      if (
+        lower.includes('seek') ||
+        lower.includes('scrub') ||
+        lower.includes('jumped to') ||
+        lower.includes('auditorium initialized') ||
+        lower.includes('doors are now') ||
+        lower.includes('chat history was cleared') ||
+        lower.includes('was muted') ||
+        lower.includes('was unmuted') ||
+        lower.includes('was ejected')
+      ) {
+        return false;
+      }
+
+      // Filter out system user messages that aren't user chats
+      if (msg.userId === 'system') {
+        return false;
+      }
+
+      return true;
+    });
+  }, [messages, personalClear]);
   const [showFilmModal, setShowFilmModal] = useState(false);
   const [showEndScreeningConfirm, setShowEndScreeningConfirm] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
@@ -442,7 +496,7 @@ export default function TheatreRoom() {
   // Auto-scroll chat to bottom on new message
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  }, [displayMessages.length]);
 
   // Synchronize HTML5 video element if active
   useEffect(() => {
@@ -1662,39 +1716,8 @@ export default function TheatreRoom() {
                   </div>
                 )}
 
-                {/* Right: Chat Toggle, Volume & Fullscreen */}
+                {/* Right: Chat Toggle & Fullscreen */}
                 <div className="flex items-center gap-3">
-                  {/* Volume Slider (Local Audio) */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      className="text-white/60 hover:text-white transition-colors"
-                      aria-label="Toggle audio"
-                      onClick={() => setVolume((v) => (v > 0 ? 0 : 80))}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        {volume > 0 ? (
-                          <>
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                          </>
-                        ) : (
-                          <>
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                            <line x1="23" y1="9" x2="17" y2="15" />
-                          </>
-                        )}
-                      </svg>
-                    </button>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={volume}
-                      onChange={(e) => setVolume(Number(e.target.value))}
-                      className="w-14 sm:w-16 accent-vc-gold hidden md:block"
-                      aria-label={`Volume: ${volume}%`}
-                    />
-                  </div>
 
                   {/* Chat Toggle */}
                   <button
@@ -1706,7 +1729,7 @@ export default function TheatreRoom() {
                         : 'border-white/10 text-white/50 hover:border-white/20'
                     )}
                   >
-                    <span>💬 Chat ({messages.length})</span>
+                    <span>💬 Chat ({displayMessages.length})</span>
                   </button>
 
                   {/* Fullscreen Button */}
@@ -2031,21 +2054,31 @@ export default function TheatreRoom() {
                 <h2 className="text-xs font-mono font-semibold text-vc-text-primary uppercase tracking-wider">
                   Auditorium Chat
                 </h2>
-                <span className="text-[10px] text-vc-gold font-mono">({messages.length})</span>
+                <span className="text-[10px] text-vc-gold font-mono">({displayMessages.length})</span>
               </div>
               <div className="flex items-center gap-2">
-                {isHost && messages.length > 0 && (
+                {displayMessages.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm('Clear all chat messages in this auditorium?')) {
+                      if (window.confirm('Clear chat messages on your screen? (This will not affect other viewers)')) {
                         clearChat();
                       }
                     }}
-                    className="text-[9px] font-mono text-vc-text-muted hover:text-vc-gold transition-colors px-1 py-0.5 rounded hover:bg-vc-bg-elevated"
-                    title="Host Authority: Clear all chat history"
+                    className="text-[9px] font-mono text-vc-text-muted hover:text-vc-gold transition-colors px-1.5 py-0.5 rounded hover:bg-vc-bg-elevated border border-transparent hover:border-vc-gold/30"
+                    title="Clear chat on your screen"
                   >
                     🧹 Clear
+                  </button>
+                )}
+                {isChatPersonallyCleared && displayMessages.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={restoreChat}
+                    className="text-[9px] font-mono text-vc-gold/80 hover:text-vc-gold transition-colors px-1.5 py-0.5 rounded hover:bg-vc-bg-elevated border border-vc-gold/20"
+                    title="Restore previously cleared chat on your screen"
+                  >
+                    ↺ Restore
                   </button>
                 )}
                 <button
@@ -2060,14 +2093,53 @@ export default function TheatreRoom() {
 
             {/* Chat Messages List */}
             <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0">
-              {messages.length === 0 ? (
+              {displayMessages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center text-vc-text-muted/50 p-4">
                   <span className="text-2xl mb-1">💬</span>
-                  <p className="text-xs font-mono">No messages yet.</p>
-                  <p className="text-[10px] mt-1">Start the conversation with other viewers!</p>
+                  <p className="text-xs font-mono">
+                    {isChatPersonallyCleared ? 'Chat cleared.' : 'No messages yet.'}
+                  </p>
+                  <p className="text-[10px] mt-1">
+                    {isChatPersonallyCleared
+                      ? 'New messages will appear here.'
+                      : 'Start the conversation with other viewers!'}
+                  </p>
+                  {isChatPersonallyCleared && (
+                    <button
+                      type="button"
+                      onClick={restoreChat}
+                      className="mt-3 text-[10px] font-mono text-vc-gold/80 hover:text-vc-gold underline underline-offset-2 transition-colors cursor-pointer"
+                    >
+                      ↺ Restore chat history
+                    </button>
+                  )}
                 </div>
               ) : (
-                messages.map((msg) => {
+                displayMessages.map((msg) => {
+                  const isHostChange =
+                    msg.message.startsWith('Host changed projection to') ||
+                    msg.message.includes('changed projection to') ||
+                    msg.message.startsWith('Host changed movie') ||
+                    msg.message.startsWith('Host changed episode');
+
+                  if (isHostChange) {
+                    return (
+                      <div
+                        key={msg.id}
+                        className="p-2.5 rounded-[4px] bg-vc-gold/10 border border-vc-gold/30 text-center my-0.5 shadow-sm"
+                      >
+                        <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono font-semibold text-vc-gold uppercase tracking-wider mb-1">
+                          <span>🎬</span>
+                          <span>Host Projection Update</span>
+                          <span className="text-vc-gold/70 text-[9px]">({msg.timestamp})</span>
+                        </div>
+                        <p className="text-xs text-vc-text-primary font-medium leading-relaxed">
+                          {msg.message}
+                        </p>
+                      </div>
+                    );
+                  }
+
                   const isMsgHost = msg.userId === room.hostId;
                   const isCurrentUser = msg.userId === user?.uid;
                   return (

@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   query,
   where,
   orderBy,
@@ -241,18 +242,6 @@ export async function createTheatreRoom(
 
   const hostDocRef = doc(db, 'theatres', theatreId, 'participants', host.uid);
   await setDoc(hostDocRef, sanitizeFirestore(hostParticipant));
-
-  // 3. Post Initial System Message to Theatre Chat (Authenticated as host)
-  const welcomeMessageRef = doc(collection(db, 'theatres', theatreId, 'messages'));
-  await setDoc(welcomeMessageRef, sanitizeFirestore({
-    id: welcomeMessageRef.id,
-    theatreId,
-    userId: host.uid,
-    userName: (host.displayName || 'Cinema Host').slice(0, 50),
-    message: `Auditorium initialized. Host controls projection.`,
-    timestamp: '0:00',
-    createdAt: Date.now(),
-  }));
 
   return newRoom;
 }
@@ -635,24 +624,25 @@ export async function clearChatMessages(theatreId: string): Promise<void> {
   try {
     const colRef = collection(db, 'theatres', theatreId, 'messages');
     const snap = await getDocs(colRef);
-    const batchPromises = snap.docs.map((d) => deleteDoc(d.ref));
-    await Promise.all(batchPromises);
+    if (snap.empty) return;
 
-    // Post fresh notification
-    const msgRef = doc(collection(db, 'theatres', theatreId, 'messages'));
-    await setDoc(
-      msgRef,
-      sanitizeFirestore({
-        id: msgRef.id,
-        theatreId,
-        userId: 'system',
-        userName: '🛡 Auditorium Security',
-        message: 'Chat history was cleared by the Host.',
-        timestamp: 'Host Action',
-        createdAt: Date.now(),
-      })
-    );
+    // Delete in chunks of 400 to strictly respect Firestore batch limits
+    const docs = snap.docs;
+    const chunkSize = 400;
+    for (let i = 0; i < docs.length; i += chunkSize) {
+      const chunk = docs.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
   } catch (err) {
-    secureLogger.error('Error clearing chat:', err);
+    secureLogger.error('Error clearing chat via batch, attempting fallback:', err);
+    try {
+      const colRef = collection(db, 'theatres', theatreId, 'messages');
+      const snap = await getDocs(colRef);
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+    } catch (fallbackErr) {
+      secureLogger.error('Fallback deleteDoc error:', fallbackErr);
+    }
   }
 }
