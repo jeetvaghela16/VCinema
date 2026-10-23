@@ -516,9 +516,6 @@ export interface AudioTrackOption {
 export const LANG_CODE_MAP: Record<string, string> = {
   hindi: 'hi',
   english: 'en',
-  spanish: 'es',
-  french: 'fr',
-  japanese: 'ja',
   multi: 'all',
   global: 'all',
 };
@@ -547,30 +544,6 @@ export const AUDIO_LANGUAGES: AudioTrackOption[] = [
     badge: 'English HD',
     description: 'Original English audio with dual language stream',
     recommendedServerId: 'vidlink',
-  },
-  {
-    id: 'spanish',
-    label: 'Español · Spanish Dub',
-    glyph: 'ES',
-    badge: 'Español',
-    description: 'Spanish dubbed track for international cinema',
-    recommendedServerId: 'autoembed',
-  },
-  {
-    id: 'french',
-    label: 'Français · French Dub',
-    glyph: 'FR',
-    badge: 'Français',
-    description: 'French dubbed voice track',
-    recommendedServerId: 'autoembed',
-  },
-  {
-    id: 'japanese',
-    label: '日本語 · Japanese',
-    glyph: 'JA',
-    badge: 'Sub/Dub',
-    description: 'Original Japanese audio track or dubbed stream for Anime',
-    recommendedServerId: 'vidfast',
   },
 ];
 
