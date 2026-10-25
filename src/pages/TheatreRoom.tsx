@@ -1429,14 +1429,14 @@ export default function TheatreRoom() {
                   <iframe
                     key={`yt-screen-${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}`}
                     src={`https://www.youtube-nocookie.com/embed/${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}?enablejsapi=1&autoplay=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&start=${Math.floor(streamAnchorTime)}&controls=1&modestbranding=1&rel=0&iv_load_policy=3${videoQuality === '4k'
-                        ? '&vq=highres'
-                        : videoQuality === '1080'
-                          ? '&vq=hd1080'
-                          : videoQuality === '720'
-                            ? '&vq=hd720'
-                            : videoQuality === '480'
-                              ? '&vq=large'
-                              : ''
+                      ? '&vq=highres'
+                      : videoQuality === '1080'
+                        ? '&vq=hd1080'
+                        : videoQuality === '720'
+                          ? '&vq=hd720'
+                          : videoQuality === '480'
+                            ? '&vq=large'
+                            : ''
                       }`}
                     className="w-full h-full border-0"
                     allowFullScreen
@@ -2680,7 +2680,7 @@ export default function TheatreRoom() {
                             <img src={stillUrl} alt={ep.name} className="w-full h-full object-cover" loading="lazy" />
                           )}
                           <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/80 text-white backdrop-blur-sm border border-white/10">
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/80 text-[#ffffff] keep-white backdrop-blur-sm border border-white/10">
                               EP {ep.episode_number}
                             </span>
                             {isCurrentEp && (
