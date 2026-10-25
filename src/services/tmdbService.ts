@@ -505,7 +505,7 @@ export interface StreamServer {
 }
 
 export interface AudioTrackOption {
-  id: string; // 'hindi' | 'multi' | 'english' | 'spanish' | 'french' | 'japanese'
+  id: string; // 'hindi' | 'multi' | 'english'
   label: string;
   glyph: string;
   badge: string;
@@ -534,7 +534,7 @@ export const AUDIO_LANGUAGES: AudioTrackOption[] = [
     label: 'Multi-Audio (All Dubs)',
     glyph: '🌐',
     badge: 'Multi-Track',
-    description: 'Switch audio tracks inside player (Hindi, English, Tamil, Telugu, Spanish, French, etc.)',
+    description: 'Switch audio tracks inside player (Hindi, English, Tamil, Telugu etc.)',
     recommendedServerId: 'vidfast',
   },
   {
@@ -554,7 +554,7 @@ export const STREAM_SERVERS: StreamServer[] = [
     badge: 'Multi-Audio ★ Fast Sync',
     category: 'multi',
     syncRating: 'perfect',
-    audioSupport: 'Hindi, English, Tamil, Telugu, Spanish, French in player settings',
+    audioSupport: 'Hindi, English, Tamil, Telugu in player settings',
     getUrl: (id, isTv, s = 1, e = 1, _lang = 'multi', startSeconds = 0, quality = 'auto') => {
       const sec = Math.floor(Math.max(0, startSeconds));
       const timeParam = sec > 0 ? `&startAt=${sec}&start=${sec}&t=${sec}` : '';

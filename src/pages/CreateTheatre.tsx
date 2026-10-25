@@ -660,7 +660,7 @@ export default function CreateTheatre() {
 
             {/* Custom URL Input View */}
             {activeCategory === 'custom' && !searchQuery.trim() ? (
-              <div className="p-4 rounded-[4px] border border-vc-gold/30 bg-black/40 space-y-3">
+              <div className="p-4 rounded-[4px] border border-vc-gold/30 bg-vc-bg-card/60 space-y-3">
                 <p className="text-xs text-vc-text-muted">
                   Paste any <strong>YouTube video / livestream URL</strong> or <strong>direct MP4 video link</strong> to stream synchronized with friends.
                 </p>
@@ -674,7 +674,7 @@ export default function CreateTheatre() {
                       value={customTitle}
                       onChange={(e) => setCustomTitle(e.target.value)}
                       placeholder="e.g. My Screening Presentation"
-                      className="w-full bg-vc-bg-base border border-vc-border rounded-[3px] px-3 py-2 text-xs text-white focus:outline-none focus:border-vc-gold"
+                      className="w-full bg-vc-bg-base border border-vc-border rounded-[3px] px-3 py-2 text-xs text-vc-text-primary focus:outline-none focus:border-vc-gold"
                     />
                   </div>
                   <div>
@@ -686,7 +686,7 @@ export default function CreateTheatre() {
                       value={customUrl}
                       onChange={(e) => setCustomUrl(e.target.value)}
                       placeholder="https://www.youtube.com/watch?v=... or .mp4"
-                      className="w-full bg-vc-bg-base border border-vc-border rounded-[3px] px-3 py-2 text-xs text-white focus:outline-none focus:border-vc-gold"
+                      className="w-full bg-vc-bg-base border border-vc-border rounded-[3px] px-3 py-2 text-xs text-vc-text-primary focus:outline-none focus:border-vc-gold"
                     />
                   </div>
                 </div>
@@ -709,7 +709,7 @@ export default function CreateTheatre() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[380px] overflow-y-auto p-1 border border-vc-border/40 rounded-[4px] bg-black/40">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[380px] overflow-y-auto p-1 border border-vc-border/40 rounded-[4px] bg-vc-bg-base/40">
                   {displayedItems.map((item) => {
                     const isSelected = selectedMedia?.id === item.id;
                     const isTv = 'seasons' in item;
@@ -830,7 +830,7 @@ export default function CreateTheatre() {
                     <button
                       type="button"
                       onClick={() => setSelectedMedia(null)}
-                      className="text-[10px] font-mono text-vc-text-muted hover:text-red-400 transition-colors border border-white/10 hover:border-red-400/30 px-2 py-0.5 rounded-[2px] bg-black/40 flex items-center gap-1"
+                      className="text-[10px] font-mono text-vc-text-muted hover:text-red-400 transition-colors border border-vc-border hover:border-red-400/40 px-2 py-0.5 rounded-[2px] bg-vc-bg-elevated/60 hover:bg-vc-bg-elevated flex items-center gap-1 shadow-sm"
                       title="Clear selection"
                     >
                       ✕ Deselect
@@ -847,9 +847,9 @@ export default function CreateTheatre() {
 
                   {/* If Web Series: Season & Episode Picker */}
                   {isSelectedTv && (
-                    <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap pt-1 border-t border-white/10">
+                    <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap pt-2 border-t border-vc-border/50">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider flex items-center gap-1">
+                        <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider flex items-center gap-1 font-semibold">
                           <span>Season:</span>
                           {isLoadingSeriesDetails && (
                             <span className="w-2.5 h-2.5 border border-vc-gold border-t-transparent rounded-full animate-spin inline-block" />
@@ -861,16 +861,16 @@ export default function CreateTheatre() {
                             setSelectedSeason(Number(e.target.value));
                             setSelectedEpisode(1);
                           }}
-                          className="bg-black/90 border border-white/20 focus:border-vc-gold rounded-[2px] px-2.5 py-1 text-xs text-white font-mono focus:outline-none"
+                          className="bg-vc-bg-card border border-vc-border focus:border-vc-gold text-vc-text-primary rounded-[2px] px-2.5 py-1 text-xs font-mono focus:outline-none shadow-sm transition-colors cursor-pointer"
                         >
                           {validSeasons.length > 0
                             ? validSeasons.map((s) => (
-                                <option key={s.season_number} value={s.season_number}>
+                                <option key={s.season_number} value={s.season_number} className="bg-vc-bg-card text-vc-text-primary">
                                   Season {s.season_number} ({s.episode_count} Episodes)
                                 </option>
                               ))
                             : Array.from({ length: totalSeasons }, (_, i) => i + 1).map((s) => (
-                                <option key={s} value={s}>
+                                <option key={s} value={s} className="bg-vc-bg-card text-vc-text-primary">
                                   Season {s}
                                 </option>
                               ))}
@@ -878,16 +878,16 @@ export default function CreateTheatre() {
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider">
+                        <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider font-semibold">
                           Episode:
                         </span>
                         <select
                           value={selectedEpisode}
                           onChange={(e) => setSelectedEpisode(Number(e.target.value))}
-                          className="bg-black/90 border border-white/20 focus:border-vc-gold rounded-[2px] px-2.5 py-1 text-xs text-white font-mono focus:outline-none"
+                          className="bg-vc-bg-card border border-vc-border focus:border-vc-gold text-vc-text-primary rounded-[2px] px-2.5 py-1 text-xs font-mono focus:outline-none shadow-sm transition-colors cursor-pointer"
                         >
                           {Array.from({ length: Math.min(totalEpisodes, 100) }, (_, i) => i + 1).map((e) => (
-                            <option key={e} value={e}>
+                            <option key={e} value={e} className="bg-vc-bg-card text-vc-text-primary">
                               Episode {e}
                             </option>
                           ))}
@@ -898,11 +898,11 @@ export default function CreateTheatre() {
 
                   {/* Audio Dub Track Status */}
                   <div className="mt-2.5 flex items-center justify-center sm:justify-start gap-2 text-[10px] font-mono">
-                    <span className="text-vc-gold">
+                    <span className="text-vc-gold font-semibold">
                       ✓ Projection Audio: {AUDIO_LANGUAGES.find((a) => a.id === selectedAudioLang)?.label}
                     </span>
-                    <span className="text-white/40">&middot;</span>
-                    <span className="text-white/60">
+                    <span className="text-vc-text-muted/40">&middot;</span>
+                    <span className="text-vc-text-muted">
                       Server: {STREAM_SERVERS.find((s) => s.id === selectedServer)?.name}
                     </span>
                   </div>
