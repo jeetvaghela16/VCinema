@@ -2587,9 +2587,9 @@ export default function TheatreRoom() {
           aria-modal="true"
           aria-label="Auditorium Episode Guide"
         >
-          <div className="glass-panel w-full max-w-5xl rounded-[8px] border border-vc-gold/40 shadow-[0_25px_90px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden bg-[#08080a]">
+          <div className="glass-panel w-full max-w-5xl rounded-[8px] border border-vc-gold/40 shadow-[0_25px_90px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden bg-vc-bg-card dark:bg-[#08080a]">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-black/80 flex-shrink-0">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-vc-border bg-vc-bg-elevated dark:bg-black/80 flex-shrink-0">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-mono text-vc-gold uppercase tracking-wider px-2 py-0.5 rounded bg-vc-gold/10 border border-vc-gold/30">
@@ -2608,7 +2608,7 @@ export default function TheatreRoom() {
 
               <button
                 onClick={() => setShowEpisodeModal(false)}
-                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-white/70 hover:text-white flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-full bg-vc-bg-base hover:bg-vc-gold/20 border border-vc-border text-vc-text-muted hover:text-vc-text-primary flex items-center justify-center transition-colors"
                 aria-label="Close episode guide"
               >
                 ✕
@@ -2616,7 +2616,7 @@ export default function TheatreRoom() {
             </div>
 
             {/* Season Tabs */}
-            <div className="px-5 py-3 border-b border-white/5 bg-black/40 flex items-center gap-2 overflow-x-auto flex-shrink-0">
+            <div className="px-5 py-3 border-b border-vc-border bg-vc-bg-base/60 dark:bg-black/40 flex items-center gap-2 overflow-x-auto flex-shrink-0">
               {theatreSeriesDetails?.seasons && theatreSeriesDetails.seasons.length > 0
                 ? theatreSeriesDetails.seasons.map((s) => (
                   <button
@@ -2626,11 +2626,11 @@ export default function TheatreRoom() {
                       'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap flex items-center gap-1.5',
                       drawerSeason === s.season_number
                         ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
-                        : 'bg-white/5 border border-white/10 text-white/70 hover:text-white hover:border-white/20'
+                        : 'bg-vc-bg-elevated border border-vc-border text-vc-text-muted hover:text-vc-text-primary hover:border-vc-gold/30'
                     )}
                   >
                     <span>Season {s.season_number}</span>
-                    <span className={cn('text-[10px]', drawerSeason === s.season_number ? 'text-black/70' : 'text-white/40')}>
+                    <span className={cn('text-[10px]', drawerSeason === s.season_number ? 'text-black/70' : 'text-vc-text-muted')}>
                       ({s.episode_count} eps)
                     </span>
                   </button>
@@ -2643,7 +2643,7 @@ export default function TheatreRoom() {
                       'px-3.5 py-1.5 rounded-[3px] text-xs font-mono transition-all whitespace-nowrap',
                       drawerSeason === s
                         ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.35)]'
-                        : 'bg-white/5 border border-white/10 text-white/70 hover:text-white'
+                        : 'bg-vc-bg-elevated border border-vc-border text-vc-text-muted hover:text-vc-text-primary hover:border-vc-gold/30'
                     )}
                   >
                     Season {s}
