@@ -407,6 +407,15 @@ export default function TheatreRoom() {
   const localTimeRef = useRef(0);
   localTimeRef.current = localTime;
   const guestPlayerTimeRef = useRef<number>(0);
+  const isBufferingRef = useRef(false);
+  const lastForwardSyncAtRef = useRef(0);
+
+  // Catch-Up Bridge: guest is behind host's pause point and continues playing towards it
+  const isGuestCatchingUp =
+    !isHost &&
+    !room?.playback?.isPlaying &&
+    guestPlayerTimeRef.current > 0 &&
+    guestPlayerTimeRef.current < (room?.playback?.currentTime ?? 0) - 1.5;
 
   // Anti-Ad Shield: Neutralize all popup, redirect, and top-navigation attempts from embedded players
   useEffect(() => {
@@ -440,12 +449,17 @@ export default function TheatreRoom() {
     if (!room?.playback) return;
 
     const playback = room.playback;
+    const isCatchingUp =
+      !isHost &&
+      !playback.isPlaying &&
+      guestPlayerTimeRef.current > 0 &&
+      guestPlayerTimeRef.current < playback.currentTime - 1.5;
 
     // 1. Calculate authoritative target time based on wall-clock elapsed time
     const authoritativeTime = calculateAuthoritativePosition(playback);
 
-    if (!playback.isPlaying) {
-      // If paused, strictly lock local time to the stored pause position
+    if (!playback.isPlaying && !isCatchingUp) {
+      // If paused and not catching up, strictly lock local time to the stored pause position
       setLocalTime(playback.currentTime);
       if (videoElementRef.current && !videoElementRef.current.paused) {
         videoElementRef.current.pause();
@@ -454,45 +468,70 @@ export default function TheatreRoom() {
     }
 
     // If playing, snap to authoritative position immediately if drift > 1.0s or zero
-    const currentDrift = Math.abs(localTimeRef.current - authoritativeTime);
-    if (currentDrift > 1.0 || localTimeRef.current === 0) {
-      setLocalTime(Math.floor(authoritativeTime));
+    if (playback.isPlaying) {
+      const currentDrift = Math.abs(localTimeRef.current - authoritativeTime);
+      if (currentDrift > 1.0 || localTimeRef.current === 0) {
+        setLocalTime(Math.floor(authoritativeTime));
+      }
     }
 
     // Advance local timer every 250ms while running, enforcing exact sub-second lockstep sync
     const interval = setInterval(() => {
+      // If video player is buffering/stalled, freeze timeline progression
+      if (isBufferingRef.current) return;
+
       const target = calculateAuthoritativePosition(playback);
       const targetSec = Math.floor(target);
+      const physTime = guestPlayerTimeRef.current;
 
-      // Lock local timeline display to host's authoritative second
+      // Guest timeline displays physical playback while lagging within grace window or catching up
+      const displaySec =
+        !isHost && physTime > 0 && (physTime < targetSec || !playback.isPlaying)
+          ? physTime
+          : targetSec;
+
       if (!isLocalSeekingRef.current) {
-        setLocalTime(targetSec);
+        setLocalTime(displaySec);
       }
 
-      // Real-time second-by-second lockstep alignment for joined viewers
-      if (!isHost && playback.isPlaying) {
-        // 1. HTML5 Video Lockstep
-        if (videoElementRef.current) {
-          const videoDiff = Math.abs(videoElementRef.current.currentTime - target);
-          if (videoDiff > 0.8) {
-            videoElementRef.current.currentTime = target;
+      // Guest Playback Alignment (Option 2: 2-minute lag tolerance & catch-up bridge)
+      if (!isHost) {
+        if (playback.isPlaying) {
+          // HTML5 Video Alignment
+          if (videoElementRef.current) {
+            const videoDiff = Math.abs(videoElementRef.current.currentTime - target);
+            if (videoDiff > 120 || videoElementRef.current.currentTime > target + 2.0) {
+              videoElementRef.current.currentTime = target;
+            }
+            if (videoElementRef.current.paused) {
+              videoElementRef.current.play().catch(() => { });
+            }
           }
-          if (videoElementRef.current.paused) {
-            videoElementRef.current.play().catch(() => { });
-          }
-        }
 
-        // 2. Iframe (YouTube / Stream) Lockstep
-        const physicalTime = guestPlayerTimeRef.current;
-        if (physicalTime > 0) {
-          const drift = Math.abs(physicalTime - targetSec);
-          if (drift > 1.2) {
-            sendIframePlaybackCommand('seek', targetSec, true);
+          // Iframe Player Alignment (Forward-only when > 2 mins behind, or if ahead > 2s)
+          if (physTime > 0) {
+            const lagBehind = targetSec - physTime;
+            const isAhead = physTime - targetSec > 2.0;
+            const isTooFarBehind = lagBehind > 120; // 2 minutes grace tolerance
+            const now = Date.now();
+            if (now - lastForwardSyncAtRef.current > 4000 && (isAhead || isTooFarBehind)) {
+              lastForwardSyncAtRef.current = now;
+              sendIframePlaybackCommand('seek', targetSec, true);
+              sendIframePlaybackCommand('play', targetSec, true);
+            }
+          } else {
             sendIframePlaybackCommand('play', targetSec, true);
           }
         } else {
-          // If player hasn't posted time yet, maintain play handshake without disrupting buffer
-          sendIframePlaybackCommand('play', targetSec, true);
+          // Room paused by host: Option 2 Catch-Up Bridge
+          const pausePos = playback.currentTime;
+          if (physTime >= pausePos - 1.0) {
+            sendIframePlaybackCommand('pause', pausePos, false);
+            setLocalTime(pausePos);
+            if (videoElementRef.current && !videoElementRef.current.paused) {
+              videoElementRef.current.pause();
+            }
+          }
         }
       }
     }, 250);
@@ -508,7 +547,7 @@ export default function TheatreRoom() {
   // Synchronize HTML5 video element if active
   useEffect(() => {
     if (!videoElementRef.current) return;
-    if (room?.playback?.isPlaying) {
+    if (room?.playback?.isPlaying || isGuestCatchingUp) {
       videoElementRef.current.play().catch(() => { });
     } else {
       videoElementRef.current.pause();
@@ -517,7 +556,7 @@ export default function TheatreRoom() {
     if (diff > 1.5) {
       videoElementRef.current.currentTime = localTime;
     }
-  }, [room?.playback?.isPlaying, localTime]);
+  }, [room?.playback?.isPlaying, isGuestCatchingUp, localTime]);
 
   // Handle Chat Submit
   const handleChatSubmit = async (e: React.FormEvent) => {
@@ -613,6 +652,7 @@ export default function TheatreRoom() {
     const targetSeconds = Math.round(percent * effDur);
     isLocalSeekingRef.current = true;
     setLocalTime(targetSeconds);
+    setStreamAnchorTime(targetSeconds);
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = targetSeconds;
     }
@@ -633,6 +673,7 @@ export default function TheatreRoom() {
         videoElementRef.current.pause();
       }
       sendIframePlaybackCommand('pause', localTime, false);
+      setStreamAnchorTime(localTime);
 
       // 2. Broadcast authoritative pause state to auditorium in Firestore
       await pause(localTime);
@@ -641,6 +682,7 @@ export default function TheatreRoom() {
       if (videoElementRef.current) {
         videoElementRef.current.play().catch(() => { });
       }
+      setStreamAnchorTime(localTime);
       sendIframePlaybackCommand('play', localTime, true);
 
       // 2. Broadcast authoritative play state to auditorium in Firestore
@@ -654,6 +696,7 @@ export default function TheatreRoom() {
     isLocalSeekingRef.current = true;
     const newTime = Math.max(0, localTime - 10);
     setLocalTime(newTime);
+    setStreamAnchorTime(newTime);
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = newTime;
     }
@@ -671,6 +714,7 @@ export default function TheatreRoom() {
     const maxDur = effectiveDuration || 8280;
     const newTime = Math.min(maxDur, localTime + 10);
     setLocalTime(newTime);
+    setStreamAnchorTime(newTime);
     if (videoElementRef.current) {
       videoElementRef.current.currentTime = newTime;
     }
@@ -860,8 +904,17 @@ export default function TheatreRoom() {
             }
           }
 
-          if (ytPlayerState === 1) detectedPlay = true;
-          if (ytPlayerState === 2) detectedPause = true;
+          if (ytPlayerState === 1) {
+            detectedPlay = true;
+            isBufferingRef.current = false;
+          }
+          if (ytPlayerState === 2) {
+            detectedPause = true;
+            isBufferingRef.current = false;
+          }
+          if (ytPlayerState === 3) {
+            isBufferingRef.current = true;
+          }
         }
 
         // B. VidLink, PlayerJS, Plyr, Video.js, HTML5 Embeds
@@ -876,8 +929,12 @@ export default function TheatreRoom() {
 
         if (eventName === 'pause' || eventName === 'paused') {
           detectedPause = true;
+          isBufferingRef.current = false;
         } else if (eventName === 'play' || eventName === 'playing') {
           detectedPlay = true;
+          isBufferingRef.current = false;
+        } else if (eventName === 'waiting' || eventName === 'buffering' || eventName === 'stalled') {
+          isBufferingRef.current = true;
         } else if (eventName === 'seeked' || eventName === 'seek') {
           const timeVal =
             payload.data?.currentTime ??
@@ -902,6 +959,7 @@ export default function TheatreRoom() {
 
         if (typeof rawTime === 'number' && Number.isFinite(rawTime)) {
           playerCurTime = rawTime;
+          isBufferingRef.current = false;
         }
 
         const rawDur =
@@ -928,22 +986,27 @@ export default function TheatreRoom() {
           guestPlayerTimeRef.current = Math.floor(playerCurTime);
         }
 
-        // GUEST REAL-TIME SECOND-BY-SECOND AUTO-CORRECTION:
+        // GUEST REAL-TIME AUTO-CORRECTION (Asymmetric 2-minute tolerance & Option 2 Catch-Up Bridge)
         if (!isHost && room?.playback && playerCurTime !== null) {
           if (room.playback.isPlaying) {
-            const authTarget = calculateAuthoritativePosition(room.playback);
-            const diff = Math.abs(playerCurTime - authTarget);
-            if (diff > 1.2) {
-              sendIframePlaybackCommand('seek', Math.floor(authTarget), true);
-              sendIframePlaybackCommand('play', Math.floor(authTarget), true);
+            const authTarget = Math.floor(calculateAuthoritativePosition(room.playback));
+            const lagBehind = authTarget - playerCurTime;
+            const isAhead = playerCurTime - authTarget > 2.0;
+            const isTooFarBehind = lagBehind > 120; // 2 minutes grace tolerance
+            const now = Date.now();
+            if (now - lastForwardSyncAtRef.current > 4000 && (isAhead || isTooFarBehind)) {
+              lastForwardSyncAtRef.current = now;
+              sendIframePlaybackCommand('seek', authTarget, true);
+              sendIframePlaybackCommand('play', authTarget, true);
             }
             if (detectedPause) {
-              sendIframePlaybackCommand('play', Math.floor(authTarget), true);
+              sendIframePlaybackCommand('play', authTarget, true);
             }
           } else {
-            // Room is paused by host: ensure guest player stays paused
-            if (detectedPlay) {
-              sendIframePlaybackCommand('pause', localTimeRef.current, false);
+            // Room is paused by host: Option 2 Catch-Up Bridge
+            const pausePos = room.playback.currentTime;
+            if (playerCurTime >= pausePos - 1.0) {
+              sendIframePlaybackCommand('pause', pausePos, false);
             }
           }
           return;
@@ -956,10 +1019,12 @@ export default function TheatreRoom() {
         if (detectedPause && room?.playback?.isPlaying) {
           hostPausedFromPlayerRef.current = true;
           const pos = playerCurTime !== null ? Math.floor(playerCurTime) : localTimeRef.current;
+          setStreamAnchorTime(pos);
           pause(pos);
         } else if (detectedPlay && !room?.playback?.isPlaying) {
           hostPausedFromPlayerRef.current = false;
           const pos = playerCurTime !== null ? Math.floor(playerCurTime) : localTimeRef.current;
+          setStreamAnchorTime(pos);
           play(pos);
         }
 
@@ -975,17 +1040,20 @@ export default function TheatreRoom() {
             }, 1500);
           }
         } else if (playerCurTime !== null && !isLocalSeekingRef.current) {
-          // Snap host local timeline to exact physical player second every second
+          // Snap host local timeline to exact physical player second
           setLocalTime(Math.floor(playerCurTime));
 
-          // Broadcast host position to Firestore periodically every 2s
+          // Only re-anchor if host physical player experienced a genuine severe stall (> 8s)
           const now = Date.now();
-          if (now - lastHostBroadcastRef.current > 2000 && room?.playback?.isPlaying) {
-            lastHostBroadcastRef.current = now;
-            updateRoomPlayback({
-              currentTime: Math.floor(playerCurTime),
-              lastUpdated: now,
-            });
+          if (room?.playback?.isPlaying && now - lastHostBroadcastRef.current > 15000) {
+            const authPos = calculateAuthoritativePosition(room.playback);
+            if (Math.abs(playerCurTime - authPos) > 8.0) {
+              lastHostBroadcastRef.current = now;
+              updateRoomPlayback({
+                currentTime: Math.floor(playerCurTime),
+                lastUpdated: now,
+              });
+            }
           }
         }
       } catch {
@@ -1042,18 +1110,21 @@ export default function TheatreRoom() {
         // Authoritative PAUSE across all iframes without seek-triggering audio
         sendIframePlaybackCommand('pause', targetTime, false);
       } else {
-        // Authoritative PLAY / RESUME or SEEK
+        // Authoritative PLAY / RESUME or deliberate manual SEEK
         if (isPlayingChanged) {
           sendIframePlaybackCommand('play', targetTime, true);
         }
         if (versionChanged) {
-          guestPlayerTimeRef.current = targetTime;
-          sendIframePlaybackCommand('seek', targetTime, true);
-          sendIframePlaybackCommand('play', targetTime, true);
+          const currentPhys = guestPlayerTimeRef.current;
+          const jumpDiff = Math.abs(currentPhys - targetTime);
 
-          if (!isHost) {
-            setSyncToast(`⚡ Host seeked · Synced to ${formatTimecode(targetTime)}`);
-            setTimeout(() => setSyncToast(null), 3000);
+          // Only seek if there is a deliberate manual jump by host (> 10s difference)
+          // Respects the 2-minute grace tolerance and prevents buffer flushing
+          if (jumpDiff > 10.0) {
+            guestPlayerTimeRef.current = targetTime;
+            lastForwardSyncAtRef.current = Date.now();
+            sendIframePlaybackCommand('seek', targetTime, true);
+            sendIframePlaybackCommand('play', targetTime, true);
           }
         }
       }
@@ -1145,7 +1216,6 @@ export default function TheatreRoom() {
     theatreServer,
     theatreAudioLang,
     playbackVideoUrl,
-    streamAnchorTime,
     hardReloadCount,
     videoQuality,
   ]);
@@ -1371,8 +1441,18 @@ export default function TheatreRoom() {
                 </div>
               )}
 
+              {/* Option 2 Catch-Up Status Banner */}
+              {isGuestCatchingUp && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-black/85 backdrop-blur-md border border-vc-gold/40 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-[0_4px_20px_rgba(0,0,0,0.8)] animate-fade-in pointer-events-none">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  <span className="text-[10px] font-mono text-vc-gold font-semibold tracking-wider uppercase">
+                    Host Paused &middot; Catching up to {formatTimecode(room.playback.currentTime)}
+                  </span>
+                </div>
+              )}
+
               {/* ── AUTHORITATIVE CINEMA PROJECTION PAUSE CURTAIN ── */}
-              {!room.playback.isPlaying && (
+              {!room.playback.isPlaying && !isGuestCatchingUp && (
                 <div className="absolute inset-0 z-30 bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none">
                   <div className="w-16 h-16 rounded-full bg-vc-gold/15 border border-vc-gold/40 flex items-center justify-center text-vc-gold text-2xl font-mono mb-3 shadow-[0_0_30px_rgba(198,167,106,0.3)] animate-pulse">
                     ❚❚
@@ -1426,23 +1506,35 @@ export default function TheatreRoom() {
               {/* Dynamic Film Video / Trailer / Stream / Poster Screen */}
               {projectionMode === 'trailer' && (currentMovie.trailerKey || room.playback.currentMovieTrailerKey) ? (
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
-                  <iframe
-                    key={`yt-screen-${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}`}
-                    src={`https://www.youtube-nocookie.com/embed/${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}?enablejsapi=1&autoplay=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&start=${Math.floor(streamAnchorTime)}&controls=1&modestbranding=1&rel=0&iv_load_policy=3${videoQuality === '4k'
-                      ? '&vq=highres'
-                      : videoQuality === '1080'
-                        ? '&vq=hd1080'
-                        : videoQuality === '720'
-                          ? '&vq=hd720'
-                          : videoQuality === '480'
-                            ? '&vq=large'
-                            : ''
-                      }`}
-                    className="w-full h-full border-0"
-                    allowFullScreen
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    title={currentMovie.title}
-                  />
+                  {room.playback.isPlaying || isGuestCatchingUp ? (
+                    <iframe
+                      key={`yt-screen-${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}-${hardReloadCount}`}
+                      src={`https://www.youtube-nocookie.com/embed/${currentMovie.trailerKey || room.playback.currentMovieTrailerKey}?enablejsapi=1&autoplay=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&start=${Math.floor(streamAnchorTime)}&controls=1&modestbranding=1&rel=0&iv_load_policy=3${videoQuality === '4k'
+                        ? '&vq=highres'
+                        : videoQuality === '1080'
+                          ? '&vq=hd1080'
+                          : videoQuality === '720'
+                            ? '&vq=hd720'
+                            : videoQuality === '480'
+                              ? '&vq=large'
+                              : ''
+                        }`}
+                      className="w-full h-full border-0"
+                      allowFullScreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      title={currentMovie.title}
+                    />
+                  ) : (
+                    <div className="w-full h-full relative overflow-hidden flex items-center justify-center">
+                      {(currentMovie.backdropUrl || currentMovie.posterUrl) && (
+                        <img
+                          src={currentMovie.backdropUrl || currentMovie.posterUrl}
+                          alt={currentMovie.title}
+                          className="w-full h-full object-cover opacity-25 filter blur-xs scale-105"
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : room.playback.mediaType === 'video' && (currentMovie.videoUrl || room.playback.currentMovieVideoUrl) ? (
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
@@ -1452,6 +1544,8 @@ export default function TheatreRoom() {
                     className="w-full h-full object-contain"
                     playsInline
                     controls
+                    onWaiting={() => { isBufferingRef.current = true; }}
+                    onPlaying={() => { isBufferingRef.current = false; }}
                     onPlay={() => {
                       if (isHost && !room?.playback?.isPlaying) {
                         play(videoElementRef.current ? Math.floor(videoElementRef.current.currentTime) : localTime);
@@ -1474,14 +1568,26 @@ export default function TheatreRoom() {
                 </div>
               ) : projectionMode === 'stream' && embedStreamUrl ? (
                 <div className="absolute inset-0 z-0 bg-black flex items-center justify-center">
-                  <iframe
-                    key={`${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${videoQuality}-${currentSeason}-${currentEpisode}-${hardReloadCount}`}
-                    src={embedStreamUrl}
-                    className="w-full h-full border-0"
-                    allowFullScreen
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    title={currentMovie.title}
-                  />
+                  {room.playback.isPlaying || isGuestCatchingUp ? (
+                    <iframe
+                      key={`stream-embed-${activeTmdbId}-${theatreServer}-${theatreAudioLang}-${videoQuality}-${currentSeason}-${currentEpisode}-${hardReloadCount}`}
+                      src={embedStreamUrl}
+                      className="w-full h-full border-0"
+                      allowFullScreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      title={currentMovie.title}
+                    />
+                  ) : (
+                    <div className="w-full h-full relative overflow-hidden flex items-center justify-center">
+                      {(currentMovie.backdropUrl || currentMovie.posterUrl) && (
+                        <img
+                          src={currentMovie.backdropUrl || currentMovie.posterUrl}
+                          alt={currentMovie.title}
+                          className="w-full h-full object-cover opacity-25 filter blur-xs scale-105"
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : currentMovie.posterUrl ? (
                 <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
@@ -1606,8 +1712,8 @@ export default function TheatreRoom() {
                     className="h-8 px-3 flex items-center gap-1.5 rounded-[3px] bg-vc-bg-card border border-vc-border text-vc-text-muted text-[11px] font-mono flex-shrink-0 cursor-not-allowed"
                     title={`Playback controlled by host (${room.hostName})`}
                   >
-                    <span>{room.playback.isPlaying ? '▶' : '❚❚'}</span>
-                    <span>{room.playback.isPlaying ? 'Live' : 'Paused'}</span>
+                    <span>{room.playback.isPlaying || isGuestCatchingUp ? '▶' : '❚❚'}</span>
+                    <span>{room.playback.isPlaying ? 'Live' : isGuestCatchingUp ? 'Catching Up' : 'Paused'}</span>
                   </div>
                 )}
 
