@@ -152,12 +152,19 @@ export default function TheatreRoom() {
   }, [isHost]);
 
   // Film selector modal state
-  const [filmModalTab, setFilmModalTab] = useState<'search' | 'curated' | 'custom' | 'originals'>('search');
+  const [filmModalTab, setFilmModalTab] = useState<'search' | 'curated' | 'custom'>('search');
   const [filmSearchQuery, setFilmSearchQuery] = useState('');
   const [filmSearchResults, setFilmSearchResults] = useState<(Movie | Series)[]>([]);
   const [isSearchingFilms, setIsSearchingFilms] = useState(false);
   const [customStreamUrl, setCustomStreamUrl] = useState('');
   const [customStreamTitle, setCustomStreamTitle] = useState('');
+
+  // Automatically select Worldwide Search (TMDB) whenever Change Film/Series modal opens
+  useEffect(() => {
+    if (showFilmModal) {
+      setFilmModalTab('search');
+    }
+  }, [showFilmModal]);
 
   // Audio Dubbing, Video Quality & Projection Mode State
   const [theatreServer, setTheatreServer] = useState<string>('vidfast');
@@ -1909,7 +1916,10 @@ export default function TheatreRoom() {
                 {isHost && (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowFilmModal(true)}
+                      onClick={() => {
+                        setFilmModalTab('search');
+                        setShowFilmModal(true);
+                      }}
                       className="text-[10px] font-mono px-3 py-1 rounded-[2px] border border-vc-gold/50 text-vc-gold hover:bg-vc-gold/15 transition-all flex items-center gap-1 font-semibold"
                     >
                       <span>🎬 Change Film / Series</span>
@@ -2279,17 +2289,6 @@ export default function TheatreRoom() {
               >
                 🔗 Custom Video / Stream URL
               </button>
-              <button
-                onClick={() => setFilmModalTab('originals')}
-                className={cn(
-                  'px-3 py-1.5 rounded-[3px] text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap',
-                  filmModalTab === 'originals'
-                    ? 'bg-vc-gold text-black font-semibold'
-                    : 'text-vc-text-muted hover:text-white bg-white/5'
-                )}
-              >
-                VCinema Exclusives
-              </button>
             </div>
 
             {/* Tab 1: Worldwide TMDB Search */}
@@ -2314,6 +2313,7 @@ export default function TheatreRoom() {
                 >
                   <input
                     type="text"
+                    autoFocus
                     value={filmSearchQuery}
                     onChange={(e) => setFilmSearchQuery(e.target.value)}
                     placeholder="Search any movie or web series worldwide (e.g. Stranger Things, Avengers, Inception, Mirzapur)..."
@@ -2573,48 +2573,6 @@ export default function TheatreRoom() {
                     Stream in Auditorium
                   </button>
                 </div>
-              </div>
-            )}
-
-            {/* Tab 4: VCinema Exclusives */}
-            {filmModalTab === 'originals' && (
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {movies.map((m) => {
-                  const isCurrent = m.id === currentMovie.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={async () => {
-                        setStreamAnchorTime(0);
-                        setLocalTime(0);
-                        await changeMovie(m, { mediaType: 'artwork' });
-                        setShowFilmModal(false);
-                        await sendMessage(`Host changed projection to "${m.title}"`);
-                      }}
-                      className={cn(
-                        'w-full text-left p-2.5 rounded-[4px] border transition-all flex items-center justify-between gap-3 group',
-                        isCurrent
-                          ? 'border-vc-gold bg-vc-gold/10'
-                          : 'border-white/5 hover:border-vc-gold/30 hover:bg-white/5'
-                      )}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-14 bg-black/60 rounded-[2px] flex items-center justify-center font-serif text-vc-gold text-xs font-bold flex-shrink-0">
-                          V
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-white truncate">{m.title}</p>
-                          <p className="text-[10px] text-vc-text-muted">
-                            {m.genre} &middot; {m.year} &middot; {m.duration}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-mono text-vc-gold uppercase px-2 py-1 rounded bg-white/5 group-hover:bg-vc-gold group-hover:text-black transition-colors">
-                        {isCurrent ? 'Playing' : 'Select'}
-                      </span>
-                    </button>
-                  );
-                })}
               </div>
             )}
           </div>

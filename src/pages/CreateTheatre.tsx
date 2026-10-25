@@ -52,7 +52,7 @@ export default function CreateTheatre() {
 
   // Category and Search State
   const [activeCategory, setActiveCategory] = useState<
-    'trending-movies' | 'trending-series' | 'classics' | 'exclusives' | 'custom'
+    'trending-movies' | 'trending-series' | 'classics' | 'custom'
   >('trending-movies');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<(Movie | Series)[]>([]);
@@ -327,8 +327,6 @@ export default function CreateTheatre() {
     ? trendingSeries
     : activeCategory === 'classics'
     ? CURATED_GLOBAL_MOVIES
-    : activeCategory === 'exclusives'
-    ? movies
     : [];
 
   const isSelectedTv = Boolean(
@@ -631,18 +629,7 @@ export default function CreateTheatre() {
                 >
                   <span>🏆 Classics & Hits</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveCategory('exclusives')}
-                  className={cn(
-                    'px-3 py-1.5 rounded-[3px] text-xs font-mono tracking-wider uppercase transition-all whitespace-nowrap flex items-center gap-1.5',
-                    activeCategory === 'exclusives'
-                      ? 'bg-vc-gold text-black font-bold shadow-[0_0_12px_rgba(198,167,106,0.25)]'
-                      : 'bg-white/5 text-vc-text-muted hover:text-white border border-white/5'
-                  )}
-                >
-                  <span>★ Award Winners</span>
-                </button>
+
                 <button
                   type="button"
                   onClick={() => setActiveCategory('custom')}
